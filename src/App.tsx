@@ -16,9 +16,7 @@ import VideoGeneration from './pages/VideoGeneration';
 import PoseControl from './pages/PoseControl';
 
 function App() {
-  const basePath = process.env.NODE_ENV === 'production' 
-    ? '/webaigenpicturebyflux' 
-    : '';
+  const basePath = '';
 
   return (
     <AppProvider>
