@@ -31,7 +31,7 @@ export default function Inpainting() {
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [brushSize, setBrushSize] = useState(20);
-  const [tool, setTool] = useState<'brush' | 'eraser'>('brush');
+  const [tool, setTool] = useState<'brush' | 'eraser' | 'pan'>('brush');
   const [showMask, setShowMask] = useState(true);
   const [maskOpacity, setMaskOpacity] = useState(0.7);
   const [prompt, setPrompt] = useState('');
