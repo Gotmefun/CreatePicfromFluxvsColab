@@ -7,7 +7,6 @@ import {
   Image, 
   Palette, 
   Edit3, 
-  Images, 
   Settings, 
   BarChart3,
   LogOut,
@@ -38,7 +37,7 @@ export default function Layout() {
     { name: 'Video Generation', href: '/video', icon: Video },
     { name: 'Pose Control', href: '/pose', icon: Users },
     { name: 'Inpainting', href: '/inpainting', icon: Edit3 },
-    { name: 'Gallery', href: '/gallery', icon: Images },
+    { name: 'Gallery', href: '/gallery', icon: Image },
     { name: 'Statistics', href: '/statistics', icon: BarChart3 },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
