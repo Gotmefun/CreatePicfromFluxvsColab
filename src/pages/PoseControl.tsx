@@ -8,7 +8,7 @@ import {
   RefreshCw, 
   Settings,
   Users,
-  Skeleton,
+  User,
   Sliders,
   Image as ImageIcon,
   Zap,
@@ -409,7 +409,7 @@ export default function PoseControl() {
               <h2 className="text-lg font-semibold text-gray-900">Generate Character</h2>
               <div className="text-sm text-gray-600 flex items-center space-x-4">
                 <span className="flex items-center">
-                  <Skeleton className="w-4 h-4 mr-1" />
+                  <User className="w-4 h-4 mr-1" />
                   OpenPose
                 </span>
                 <span className="flex items-center">
@@ -491,7 +491,7 @@ export default function PoseControl() {
                   {poseImage && (
                     <div className="space-y-2">
                       <h4 className="text-sm font-medium text-gray-700 flex items-center">
-                        <Skeleton className="w-4 h-4 mr-1" />
+                        <User className="w-4 h-4 mr-1" />
                         ท่าทางที่ตรวจจับ
                       </h4>
                       <img
