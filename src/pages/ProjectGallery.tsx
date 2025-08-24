@@ -82,7 +82,7 @@ export default function ProjectGallery() {
   };
 
   const deleteSelected = () => {
-    if (confirm(`คุณต้องการลบรูป ${selectedImages.length} รูปใช่หรือไม่?`)) {
+    if (window.confirm(`คุณต้องการลบรูป ${selectedImages.length} รูปใช่หรือไม่?`)) {
       selectedImages.forEach(id => {
         // dispatch({ type: 'DELETE_GENERATED_IMAGE', payload: id });
       });
