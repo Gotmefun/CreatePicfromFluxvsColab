@@ -16,7 +16,6 @@ export default function Login() {
     
     // Simple password check - in production, use proper authentication
     if (password === 'admin123') {
-      dispatch({ type: 'SET_AUTHENTICATED', payload: true });
       if (rememberMe) {
         localStorage.setItem('rememberLogin', 'true');
       }
