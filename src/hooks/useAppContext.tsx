@@ -18,6 +18,7 @@ type AppAction =
   | { type: 'SET_CURRENT_PROJECT'; payload: Project | null }
   | { type: 'SET_REFERENCES'; payload: Reference[] }
   | { type: 'ADD_REFERENCE'; payload: Reference }
+  | { type: 'UPDATE_REFERENCE'; payload: Reference }
   | { type: 'DELETE_REFERENCE'; payload: string }
   | { type: 'SET_GENERATED_IMAGES'; payload: GeneratedImage[] }
   | { type: 'ADD_GENERATED_IMAGE'; payload: GeneratedImage }
@@ -78,6 +79,11 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'ADD_REFERENCE':
       return { ...state, references: [...state.references, action.payload] };
     
+     case 'UPDATE_REFERENCE':
+    return {
+      ...state,
+      references: state.references.map(r => r.id   === action.payload.id ? action.payload : r)
+    };
     case 'DELETE_REFERENCE':
       return { ...state, references: state.references.filter(r => r.id !== action.payload) };
     
