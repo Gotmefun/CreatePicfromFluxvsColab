@@ -526,13 +526,9 @@ export default function Inpainting() {
 
 {/* Save Modal */}
 {showSaveModal && resultImage && (
-  <SaveToGoogleDriveModal image={resultImage || ''} />
-)}
-
-          onSave={handleSave}
-          onClose={() => setShowSaveModal(false)}
-        />
-      )}
-    </div>
-  );
-}
+    <SaveToGoogleDriveModal 
+      image={resultImage || ''}
+      onSave={handleSave}
+      onClose={() => setShowSaveModal(false)}
+    />
+  )}
