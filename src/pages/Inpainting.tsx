@@ -1,48 +1,33 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAppContext } from '../hooks/useAppContext';
-import { InpaintingMask } from '../types';
-import { 
-  Upload, 
-  Brush, 
-  Eraser, 
-  RotateCcw, 
-  Play, 
-  Save, 
-  Settings, 
-  Eye, 
-  EyeOff,
-  Palette,
-  Download,
-  RefreshCw,
-  Minus,
-  Plus,
-  Move,
-  Square
-} from 'lucide-react';
+import { Upload, Download, Save, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import SaveToGoogleDriveModal from '../components/SaveToGoogleDriveModal';
 
+interface Point {
+  x: number;
+  y: number;
+}
+
 export default function Inpainting() {
-  const { state } = useAppContext();
+  const { state, dispatch } = useAppContext();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [baseImage, setBaseImage] = useState<string | null>(null);
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [brushSize, setBrushSize] = useState(20);
-  const [tool, setTool] = useState<'brush' | 'eraser' | 'pan'>('brush');
-  const [showMask, setShowMask] = useState(true);
-  const [maskOpacity, setMaskOpacity] = useState(0.7);
   const [prompt, setPrompt] = useState('');
+  const [negativePrompt, setNegativePrompt] = useState('');
+  const [steps, setSteps] = useState(20);
+  const [guidanceScale, setGuidanceScale] = useState(7.5);
   const [denoisingStrength, setDenoisingStrength] = useState(0.8);
   const [isProcessing, setIsProcessing] = useState(false);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [lastPan, setLastPan] = useState({ x: 0, y: 0 });
+  const [lastPoint, setLastPoint] = useState<Point | null>(null);
 
   useEffect(() => {
     if (baseImage && originalImage) {
@@ -55,14 +40,16 @@ export default function Inpainting() {
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
+        const imageUrl = event.target?.result as string;
+        setBaseImage(imageUrl);
+        
         const img = new Image();
         img.onload = () => {
           setOriginalImage(img);
-          setBaseImage(event.target?.result as string);
-          setResultImage(null);
-          clearMask();
+          setZoom(1);
+          setPan({ x: 0, y: 0 });
         };
-        img.src = event.target?.result as string;
+        img.src = imageUrl;
       };
       reader.readAsDataURL(file);
     }
@@ -70,105 +57,93 @@ export default function Inpainting() {
 
   const drawImageToCanvas = () => {
     const canvas = canvasRef.current;
-    const maskCanvas = maskCanvasRef.current;
-    if (!canvas || !maskCanvas || !originalImage) return;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx || !originalImage) return;
 
-    const ctx = canvas.getContext('2d');
-    const maskCtx = maskCanvas.getContext('2d');
-    if (!ctx || !maskCtx) return;
+    canvas.width = 512;
+    canvas.height = 512;
 
-    // Set canvas size
-    canvas.width = originalImage.width;
-    canvas.height = originalImage.height;
-    maskCanvas.width = originalImage.width;
-    maskCanvas.height = originalImage.height;
-
-    // Draw base image
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(originalImage, 0, 0);
-
-    // Apply zoom and pan
-    canvas.style.transform = `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`;
-    maskCanvas.style.transform = `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`;
-  };
-
-  const clearMask = () => {
-    const maskCanvas = maskCanvasRef.current;
-    if (!maskCanvas) return;
     
-    const ctx = maskCanvas.getContext('2d');
-    if (ctx) {
-      ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
-    }
+    const scale = Math.min(512 / originalImage.width, 512 / originalImage.height) * zoom;
+    const scaledWidth = originalImage.width * scale;
+    const scaledHeight = originalImage.height * scale;
+    
+    const x = (512 - scaledWidth) / 2 + pan.x;
+    const y = (512 - scaledHeight) / 2 + pan.y;
+    
+    ctx.drawImage(originalImage, x, y, scaledWidth, scaledHeight);
   };
 
-  const getMousePos = (e: React.MouseEvent) => {
+  const getCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
 
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / (rect.width * zoom);
-    const scaleY = canvas.height / (rect.height * zoom);
-    
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
     return {
-      x: (e.clientX - rect.left - pan.x) * scaleX,
-      y: (e.clientY - rect.top - pan.y) * scaleY
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
     };
   };
 
-  const startDrawing = (e: React.MouseEvent) => {
-    if (tool === 'pan') {
-      setIsPanning(true);
-      setLastPan({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-      return;
-    }
-
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDrawing(true);
-    draw(e);
+    const point = getCanvasCoordinates(e);
+    setLastPoint(point);
+    drawBrush(point);
   };
 
-  const draw = (e: React.MouseEvent) => {
-    if (!isDrawing || !maskCanvasRef.current) return;
-
-    const ctx = maskCanvasRef.current.getContext('2d');
-    if (!ctx) return;
-
-    const pos = getMousePos(e);
-
-    ctx.globalCompositeOperation = tool === 'brush' ? 'source-over' : 'destination-out';
-    ctx.beginPath();
-    ctx.arc(pos.x, pos.y, brushSize / 2, 0, 2 * Math.PI);
-    ctx.fillStyle = `rgba(255, 0, 0, ${maskOpacity})`;
-    ctx.fill();
+  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    
+    const currentPoint = getCanvasCoordinates(e);
+    if (lastPoint) {
+      drawLine(lastPoint, currentPoint);
+    }
+    setLastPoint(currentPoint);
   };
 
   const stopDrawing = () => {
     setIsDrawing(false);
-    setIsPanning(false);
+    setLastPoint(null);
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
-      setPan({
-        x: e.clientX - lastPan.x,
-        y: e.clientY - lastPan.y
-      });
-      return;
+  const drawBrush = (point: Point) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx) return;
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, brushSize / 2, 0, 2 * Math.PI);
+    ctx.fill();
+  };
+
+  const drawLine = (start: Point, end: Point) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx) return;
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = brushSize;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+  };
+
+  const clearCanvas = () => {
+    if (originalImage) {
+      drawImageToCanvas();
     }
-
-    if (isDrawing) {
-      draw(e);
-    }
-  };
-
-  const handleZoom = (delta: number) => {
-    const newZoom = Math.max(0.1, Math.min(5, zoom + delta));
-    setZoom(newZoom);
-  };
-
-  const resetView = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
   };
 
   const processInpainting = async () => {
@@ -177,194 +152,303 @@ export default function Inpainting() {
       return;
     }
 
-    const maskCanvas = maskCanvasRef.current;
-    if (!maskCanvas) return;
-
-    const maskData = maskCanvas.toDataURL();
-    if (maskData === 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==') {
-      alert('กรุณาระบายพื้นที่ที่ต้องการแก้ไข');
-      return;
-    }
-
     setIsProcessing(true);
+    dispatch({ type: 'SET_LOADING', payload: true });
 
     try {
-      // Simulate processing
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      const canvas = canvasRef.current;
+      if (!canvas) throw new Error('Canvas not found');
+
+      const maskDataUrl = canvas.toDataURL('image/png');
+
+      const requestData = {
+        image: baseImage,
+        mask: maskDataUrl,
+        prompt: prompt.trim(),
+        negative_prompt: negativePrompt.trim(),
+        num_inference_steps: steps,
+        guidance_scale: guidanceScale,
+        strength: denoisingStrength,
+        width: 512,
+        height: 512
+      };
+
+      const response = await fetch(`${state.settings.colab.apiEndpoint}/inpaint`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
       
-      // Create mock result (replace with actual API call)
-      const mockResult = createMockInpaintedImage();
-      setResultImage(mockResult);
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      if (result.image) {
+        const imageUrl = `data:image/png;base64,${result.image}`;
+        setResultImage(imageUrl);
+      } else {
+        throw new Error('No image received from API');
+      }
 
     } catch (error) {
-      console.error('Inpainting failed:', error);
-      alert('เกิดข้อผิดพลาดในการประมวลผล');
+      console.error('Inpainting error:', error);
+      alert('เกิดข้อผิดพลาดในการประมวลผล: ' + (error as Error).message);
     } finally {
       setIsProcessing(false);
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
-  const createMockInpaintedImage = () => {
-    if (!originalImage) return '';
+  const handleSave = async (metadata: any) => {
+    if (!resultImage) return;
 
-    const canvas = document.createElement('canvas');
-    canvas.width = originalImage.width;
-    canvas.height = originalImage.height;
-    const ctx = canvas.getContext('2d');
-    
-    if (ctx) {
-      // Draw original image
-      ctx.drawImage(originalImage, 0, 0);
-      
-      // Add some visual indication of inpainting
-      ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
-      ctx.fillRect(originalImage.width * 0.3, originalImage.height * 0.3, 
-                   originalImage.width * 0.4, originalImage.height * 0.4);
-      
-      // Add text
-      ctx.fillStyle = 'white';
-      ctx.font = '20px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('Inpainted Area', canvas.width / 2, canvas.height / 2);
+    try {
+      const newImage = {
+        id: Date.now().toString(),
+        url: resultImage,
+        prompt,
+        negativePrompt,
+        parameters: {
+          steps,
+          guidanceScale,
+          denoisingStrength,
+          model: 'inpainting'
+        },
+        createdAt: new Date().toISOString(),
+        projectId: state.currentProject?.id,
+        metadata
+      };
+
+      dispatch({ type: 'ADD_GENERATED_IMAGE', payload: newImage });
+      setShowSaveModal(false);
+      alert('บันทึกสำเร็จ!');
+    } catch (error) {
+      console.error('Save error:', error);
+      alert('เกิดข้อผิดพลาดในการบันทึก');
     }
-    
-    return canvas.toDataURL();
   };
 
-  const handleSave = (options: any) => {
-    console.log('Saving inpainted image:', options);
-    setShowSaveModal(false);
+  const zoomIn = () => setZoom(prev => Math.min(prev * 1.2, 3));
+  const zoomOut = () => setZoom(prev => Math.max(prev / 1.2, 0.5));
+
+  const handlePan = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.buttons === 2) {
+      e.preventDefault();
+      const movementX = e.movementX;
+      const movementY = e.movementY;
+      setPan(prev => ({
+        x: prev.x + movementX,
+        y: prev.y + movementY
+      }));
+    }
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Inpainting</h1>
-          <p className="text-gray-600">แก้ไขส่วนต่างๆ ของภาพด้วย AI</p>
-        </div>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="btn-primary flex items-center space-x-2"
-        >
-          <Upload className="w-5 h-5" />
-          <span>เลือกรูป</span>
-        </button>
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-4">AI Inpainting</h1>
+        <p className="text-gray-600">แก้ไขส่วนที่ต้องการของรูปภาพด้วย AI โดยการระบายพื้นที่และใส่ prompt</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Tools Sidebar */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Drawing Tools */}
-          <div className="card p-4">
-            <h3 className="font-medium text-gray-900 mb-4">เครื่องมือ</h3>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="card p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">อัปโหลดรูปภาพ</h3>
+            <div 
+              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-gray-400 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600 mb-2">คลิกเพื่อเลือกรูปภาพ</p>
+              <p className="text-sm text-gray-500">รองรับ PNG, JPG, JPEG</p>
+            </div>
+          </div>
+
+          <div className="card p-6">
+            {!baseImage ? (
+              <div 
+                className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center cursor-pointer hover:border-gray-400 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-lg text-gray-600 mb-2">เลือกรูปภาพเพื่อเริ่มต้น</p>
+                <p className="text-gray-500">ระบายพื้นที่ที่ต้องการแก้ไขด้วยเมาส์</p>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">แก้ไขรูปภาพ</h3>
+                  <div className="flex items-center space-x-2">
+                    <button onClick={zoomOut} className="btn-secondary p-2" title="ซูมออก">
+                      <ZoomOut className="w-4 h-4" />
+                    </button>
+                    <span className="text-sm text-gray-600 min-w-[60px] text-center">
+                      {Math.round(zoom * 100)}%
+                    </span>
+                    <button onClick={zoomIn} className="btn-secondary p-2" title="ซูมเข้า">
+                      <ZoomIn className="w-4 h-4" />
+                    </button>
+                    <button onClick={clearCanvas} className="btn-secondary p-2" title="ล้างการระบาย">
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="relative">
+                  <canvas
+                    ref={canvasRef}
+                    width={512}
+                    height={512}
+                    className="border border-gray-300 rounded-lg cursor-crosshair max-w-full h-auto"
+                    onMouseDown={startDrawing}
+                    onMouseMove={(e) => {
+                      draw(e);
+                      handlePan(e);
+                    }}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                    onContextMenu={(e) => e.preventDefault()}
+                  />
+                </div>
+                
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ขนาดพู่กัน: {brushSize}px
+                  </label>
+                  <input
+                    type="range"
+                    min="5"
+                    max="50"
+                    value={brushSize}
+                    onChange={(e) => setBrushSize(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+                
+                <p className="text-sm text-gray-500 mt-2">
+                  เคล็ดลับ: คลิกซ้ายเพื่อระบาย, คลิกขวาค้างเพื่อเลื่อนภาพ
+                </p>
+              </div>
+            )}
+          </div>
+
+          {baseImage && (
+            <div className="card p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Prompt สำหรับพื้นที่ที่ระบาย</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Prompt</label>
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    className="input-field"
+                    rows={3}
+                    placeholder="อธิบายสิ่งที่ต้องการให้ปรากฏในพื้นที่ที่ระบาย..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Negative Prompt</label>
+                  <textarea
+                    value={negativePrompt}
+                    onChange={(e) => setNegativePrompt(e.target.value)}
+                    className="input-field"
+                    rows={2}
+                    placeholder="สิ่งที่ไม่ต้องการให้ปรากฏ..."
+                  />
+                </div>
+
                 <button
-                  onClick={() => setTool('brush')}
-                  className={`flex items-center justify-center p-3 rounded-lg border transition-colors ${
-                    tool === 'brush' 
-                      ? 'border-primary-500 bg-primary-50 text-primary-700' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  onClick={processInpainting}
+                  disabled={isProcessing || !prompt.trim()}
+                  className="btn-primary w-full"
                 >
-                  <Brush className="w-5 h-5" />
+                  {isProcessing ? 'กำลังประมวลผล...' : 'เริ่ม Inpainting'}
                 </button>
-                <button
-                  onClick={() => setTool('eraser')}
-                  className={`flex items-center justify-center p-3 rounded-lg border transition-colors ${
-                    tool === 'eraser' 
-                      ? 'border-red-500 bg-red-50 text-red-700' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <Eraser className="w-5 h-5" />
-                </button>
+              </div>
+            </div>
+          )}
+
+          {resultImage && (
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">ผลลัพธ์</h3>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setShowSaveModal(true)}
+                    className="btn-primary text-sm"
+                  >
+                    <Save className="w-4 h-4 mr-1" />
+                    Save to Drive
+                  </button>
+                  <a
+                    href={resultImage || ''}
+                    download="inpainted-image.png"
+                    className="btn-secondary text-sm"
+                  >
+                    <Download className="w-4 h-4 mr-1" />
+                    Download
+                  </a>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">ก่อน</p>
+                  <img src={baseImage || ''} alt="Original" className="w-full rounded-lg border" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">หลัง</p>
+                  <img src={resultImage || ''} alt="Result" className="w-full rounded-lg border" />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <div className="card p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">พารามิเตอร์</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Steps: {steps}
+                </label>
+                <input
+                  type="range"
+                  min="10"
+                  max="50"
+                  value={steps}
+                  onChange={(e) => setSteps(Number(e.target.value))}
+                  className="w-full"
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ขนาดแปรง: {brushSize}px
+                  Guidance Scale: {guidanceScale}
                 </label>
                 <input
                   type="range"
                   min="1"
-                  max="100"
-                  value={brushSize}
-                  onChange={(e) => setBrushSize(parseInt(e.target.value))}
+                  max="20"
+                  step="0.5"
+                  value={guidanceScale}
+                  onChange={(e) => setGuidanceScale(Number(e.target.value))}
                   className="w-full"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ความโปร่งใส: {Math.round(maskOpacity * 100)}%
-                </label>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="1"
-                  step="0.1"
-                  value={maskOpacity}
-                  onChange={(e) => setMaskOpacity(parseFloat(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setShowMask(!showMask)}
-                  className="btn-secondary flex items-center space-x-1"
-                >
-                  {showMask ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                  <span className="text-sm">Mask</span>
-                </button>
-                <button
-                  onClick={clearMask}
-                  className="btn-secondary flex items-center space-x-1"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  <span className="text-sm">Clear</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* View Controls */}
-          <div className="card p-4">
-            <h3 className="font-medium text-gray-900 mb-4">มุมมอง</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-700">Zoom: {Math.round(zoom * 100)}%</span>
-                <div className="flex items-center space-x-1">
-                  <button
-                    onClick={() => handleZoom(-0.1)}
-                    className="p-1 hover:bg-gray-100 rounded"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleZoom(0.1)}
-                    className="p-1 hover:bg-gray-100 rounded"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              <button
-                onClick={resetView}
-                className="w-full btn-secondary text-sm"
-              >
-                รีเซ็ตมุมมอง
-              </button>
-            </div>
-          </div>
-
-          {/* Settings */}
-          <div className="card p-4">
-            <h3 className="font-medium text-gray-900 mb-4">การตั้งค่า</h3>
-            <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Denoising Strength: {denoisingStrength}
@@ -375,160 +459,33 @@ export default function Inpainting() {
                   max="1"
                   step="0.1"
                   value={denoisingStrength}
-                  onChange={(e) => setDenoisingStrength(parseFloat(e.target.value))}
+                  onChange={(e) => setDenoisingStrength(Number(e.target.value))}
                   className="w-full"
                 />
-                <p className="text-xs text-gray-600 mt-1">
-                  สูง = เปลี่ยนแปลงมาก, ต่ำ = เปลี่ยนแปลงน้อย
+                <p className="text-xs text-gray-500 mt-1">
+                  ความแรงในการแก้ไข (1.0 = เปลี่ยนแปลงมาก)
                 </p>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Main Canvas Area */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Canvas */}
-          <div className="card p-6">
-            {!baseImage ? (
-              <div 
-                className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center cursor-pointer hover:border-gray-400 transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">อัปโหลดรูปเพื่อเริ่มแก้ไข</h3>
-                <p className="text-gray-600">รองรับ JPG, PNG ขนาดไม่เกิน 10MB</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="relative overflow-hidden bg-gray-100 rounded-lg" style={{ height: '500px' }}>
-                  <canvas
-                    ref={canvasRef}
-                    className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 cursor-crosshair"
-                    onMouseDown={startDrawing}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={stopDrawing}
-                    onMouseLeave={stopDrawing}
-                  />
-                  <canvas
-                    ref={maskCanvasRef}
-                    className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none ${
-                      showMask ? 'opacity-100' : 'opacity-0'
-                    }`}
-                    style={{ mixBlendMode: 'multiply' }}
-                  />
-                  
-                  {/* Brush Preview */}
-                  <div 
-                    className="brush-preview"
-                    style={{
-                      width: `${brushSize}px`,
-                      height: `${brushSize}px`,
-                      borderColor: tool === 'brush' ? '#3b82f6' : '#ef4444'
-                    }}
-                  />
-                </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageUpload}
+        className="hidden"
+      />
 
-                <div className="text-center text-sm text-gray-600">
-                  <p>💡 ใช้เมาส์ระบายพื้นที่ที่ต้องการแก้ไข แล้วใส่ prompt อธิบายสิ่งที่ต้องการให้เปลี่ยน</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Prompt Input */}
-          {baseImage && (
-            <div className="card p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Prompt สำหรับพื้นที่ที่ระบาย</h3>
-              <div className="space-y-4">
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="อธิบายสิ่งที่ต้องการให้ปรากฏในพื้นที่ที่ระบาย เช่น 'holding iPhone' หรือ 'beautiful flowers'"
-                  rows={3}
-                  className="input-field"
-                />
-                
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    <p>ตัวอย่าง: "holding smartphone", "red rose flowers", "mountain landscape"</p>
-                  </div>
-                  <button
-                    onClick={processInpainting}
-                    disabled={isProcessing || !prompt.trim()}
-                    className="btn-primary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <RefreshCw className="w-5 h-5 animate-spin" />
-                        <span>กำลังประมวลผล...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-5 h-5" />
-                        <span>เริ่มแก้ไข</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Result */}
-          {resultImage && (
-            <div className="card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">ผลลัพธ์</h3>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => setShowSaveModal(true)}
-                    className="btn-primary text-sm"
-                  >
-                    <Save className="w-4 h-4 mr-1" />
-                    Save to Drive
-                  </button>
-                  <a
-               <a
-  href={resultImage || ''}
-  download="inpainted-image.png"
-  className="btn-secondary text-sm"
->
-  <Download className="w-4 h-4 mr-1" />
-  Download
-</a>
-</div>
-</div>
-
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-  <div>
-    <p className="text-sm font-medium text-gray-700 mb-2">ก่อน</p>
-    <img src={baseImage || ''} alt="Original" className="w-full rounded-lg border" />
-  </div>
-  <div>
-    <p className="text-sm font-medium text-gray-700 mb-2">หลัง</p>
-    <img src={resultImage || ''} alt="Result" className="w-full rounded-lg border" />
-  </div>
-</div>
-</div>
-)}
-</div>
-</div>
-
-{/* Hidden File Input */}
-<input
-  ref={fileInputRef}
-  type="file"
-  accept="image/*"
-  onChange={handleImageUpload}
-  className="hidden"
-/>
-
-{/* Save Modal */}
- {showSaveModal && resultImage && (
-    <SaveToGoogleDriveModal 
-      image={resultImage || ''}
-      onSave={handleSave}
-      onClose={() => setShowSaveModal(false)}
-    />
-  )}
+      {showSaveModal && resultImage && (
+        <SaveToGoogleDriveModal
+          image={resultImage || ''}
+          onSave={handleSave}
+          onClose={() => setShowSaveModal(false)}
+        />
+      )}
+    </div>
+  );
+}
