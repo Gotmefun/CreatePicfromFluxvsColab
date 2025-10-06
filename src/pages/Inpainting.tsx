@@ -161,42 +161,12 @@ export default function Inpainting() {
 
       const maskDataUrl = canvas.toDataURL('image/png');
 
-      const requestData = {
-        image: baseImage,
-        mask: maskDataUrl,
-        prompt: prompt.trim(),
-        negative_prompt: negativePrompt.trim(),
-        num_inference_steps: steps,
-        guidance_scale: guidanceScale,
-        strength: denoisingStrength,
-        width: 512,
-        height: 512
-      };
-
-      const response = await fetch(`${state.settings.colab.apiEndpoint}/inpaint`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData)
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
+      // Mock processing for now
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      if (result.error) {
-        throw new Error(result.error);
-      }
-
-      if (result.image) {
-        const imageUrl = `data:image/png;base64,${result.image}`;
-        setResultImage(imageUrl);
-      } else {
-        throw new Error('No image received from API');
-      }
+      // Create a mock result image
+      const mockResult = baseImage; // Use original image as mock result
+      setResultImage(mockResult);
 
     } catch (error) {
       console.error('Inpainting error:', error);
@@ -211,20 +181,32 @@ export default function Inpainting() {
     if (!resultImage) return;
 
     try {
+      const timestamp = Date.now().toString();
       const newImage = {
-        id: Date.now().toString(),
+        id: timestamp,
+        filename: `inpainted-${timestamp}.png`,
         url: resultImage,
         prompt,
-        negativePrompt,
-        parameters: {
+        negativePrompt: negativePrompt || '',
+        settings: {
+          model: state.settings.defaultModel,
           steps,
-          guidanceScale,
-          denoisingStrength,
-          model: 'inpainting'
+          cfgScale: guidanceScale,
+          width: 512,
+          height: 512,
+          denoisingStrength
         },
-        createdAt: new Date().toISOString(),
-        projectId: state.currentProject?.id,
-        metadata
+        references: [],
+        projectId: state.currentProject?.id || '',
+        createdAt: new Date(),
+        metadata: {
+          width: 512,
+          height: 512,
+          format: 'png',
+          size: 0,
+          tags: ['inpainting'],
+          description: prompt
+        }
       };
 
       dispatch({ type: 'ADD_GENERATED_IMAGE', payload: newImage });
