@@ -282,6 +282,4 @@ class Waifu2xService {
 // Export singleton instance
 export const waifu2xService = new Waifu2xService();
 
-// Export types
-export type { Waifu2xRequest };
 export default Waifu2xService;

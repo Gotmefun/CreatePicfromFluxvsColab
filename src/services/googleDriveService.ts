@@ -421,6 +421,4 @@ declare global {
 // Export singleton instance
 export const driveService = new GoogleDriveService();
 
-// Export types
-export type { DriveFile, UploadOptions };
 export default GoogleDriveService;

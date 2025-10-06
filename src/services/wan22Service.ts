@@ -358,6 +358,4 @@ class Wan22Service {
 // Export singleton instance
 export const wan22Service = new Wan22Service();
 
-// Export types
-export type { VideoGenerationRequest };
 export default Wan22Service;

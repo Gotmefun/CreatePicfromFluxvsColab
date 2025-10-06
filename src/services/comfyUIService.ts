@@ -438,6 +438,4 @@ class ComfyUIService {
 // Export singleton instance
 export const comfyUIService = new ComfyUIService();
 
-// Export types
-export type { PoseControlRequest };
 export default ComfyUIService;

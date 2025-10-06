@@ -276,6 +276,4 @@ class GoogleColabService {
 // Export singleton instance
 export const colabService = new GoogleColabService();
 
-// Export types
-export type { GenerationRequest, InpaintingRequest };
 export default GoogleColabService;
