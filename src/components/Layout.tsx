@@ -1,15 +1,14 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppContext } from '../hooks/useAppContext';
-import { 
-  Home, 
-  FolderPlus, 
-  Image, 
-  Palette, 
-  Edit3, 
-  Settings, 
+import {
+  Home,
+  FolderPlus,
+  Image,
+  Palette,
+  Edit3,
+  Settings,
   BarChart3,
-  LogOut,
   Menu,
   X,
   Maximize,
@@ -22,11 +21,6 @@ export default function Layout() {
   const location = useLocation();
   const { state, dispatch } = useAppContext();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
-
-  if (!state.isAuthenticated) {
-    navigate('/login');
-    return null;
-  }
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Home },
@@ -41,12 +35,6 @@ export default function Layout() {
     { name: 'Statistics', href: '/statistics', icon: BarChart3 },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
-
-  const handleLogout = () => {
-    dispatch({ type: 'SET_AUTHENTICATED', payload: false });
-    dispatch({ type: 'SET_CURRENT_PROJECT', payload: null });
-    navigate('/login');
-  };
 
   return (
     <div className="h-screen flex bg-gray-50">
@@ -110,17 +98,6 @@ export default function Layout() {
               );
             })}
           </nav>
-
-          {/* Logout */}
-          <div className="p-4 border-t border-gray-200">
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 rounded-lg transition-colors duration-200"
-            >
-              <LogOut className="w-5 h-5 mr-3" />
-              ออกจากระบบ
-            </button>
-          </div>
         </div>
       </div>
 
