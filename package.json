@@ -2,7 +2,6 @@
   "name": "ai-image-generation-flux",
   "version": "1.0.0",
   "private": true,
-  "homepage": "https://aigen.ptee88.com",
   "dependencies": {
     "@types/node": "^16.18.0",
     "@types/react": "^18.0.0",
