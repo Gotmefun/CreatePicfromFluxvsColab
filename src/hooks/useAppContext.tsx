@@ -7,8 +7,7 @@ interface AppState {
   references: Reference[];
   generatedImages: GeneratedImage[];
   settings: AppSettings;
-  isAuthenticated: boolean;
-  loading: boolean;
+   loading: boolean;
 }
 
 type AppAction =
@@ -23,7 +22,6 @@ type AppAction =
   | { type: 'SET_GENERATED_IMAGES'; payload: GeneratedImage[] }
   | { type: 'ADD_GENERATED_IMAGE'; payload: GeneratedImage }
   | { type: 'SET_SETTINGS'; payload: AppSettings }
-  | { type: 'SET_AUTHENTICATED'; payload: boolean }
   | { type: 'SET_LOADING'; payload: boolean };
 
 const initialState: AppState = {
@@ -46,8 +44,7 @@ const initialState: AppState = {
     autoSave: true,
     theme: 'light'
   },
-  isAuthenticated: false,
-  loading: false
+   loading: false
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -93,9 +90,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_SETTINGS':
       return { ...state, settings: action.payload };
     
-    case 'SET_AUTHENTICATED':
-      return { ...state, isAuthenticated: action.payload };
-    
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
     
@@ -119,8 +113,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(savedData);
         if (parsed.projects) dispatch({ type: 'SET_PROJECTS', payload: parsed.projects });
         if (parsed.settings) dispatch({ type: 'SET_SETTINGS', payload: parsed.settings });
-        if (parsed.isAuthenticated) dispatch({ type: 'SET_AUTHENTICATED', payload: parsed.isAuthenticated });
-      } catch (error) {
+             } catch (error) {
         console.error('Error loading saved data:', error);
       }
     }
@@ -130,10 +123,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const dataToSave = {
       projects: state.projects,
       settings: state.settings,
-      isAuthenticated: state.isAuthenticated
-    };
+        };
     localStorage.setItem('aiImageGenApp', JSON.stringify(dataToSave));
-  }, [state.projects, state.settings, state.isAuthenticated]);
+  }, [state.projects, state.settings]);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>

@@ -10,7 +10,6 @@ import Inpainting from './pages/Inpainting';
 import ProjectGallery from './pages/ProjectGallery';
 import Settings from './pages/Settings';
 import Statistics from './pages/Statistics';
-import Login from './pages/Login';
 import ImageEnhancement from './pages/ImageEnhancement';
 import VideoGeneration from './pages/VideoGeneration';
 import PoseControl from './pages/PoseControl';
@@ -22,9 +21,8 @@ function App() {
     <AppProvider>
       <Router basename={basePath}>
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="project/create" element={<ProjectCreate />} />
             <Route path="references" element={<ReferenceManager />} />
