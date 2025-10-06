@@ -525,7 +525,7 @@ export default function Inpainting() {
 />
 
 {/* Save Modal */}
-{showSaveModal && resultImage && (
+ {showSaveModal && resultImage && (
     <SaveToGoogleDriveModal 
       image={resultImage || ''}
       onSave={handleSave}
