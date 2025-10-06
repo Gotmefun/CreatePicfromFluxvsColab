@@ -489,44 +489,46 @@ export default function Inpainting() {
                     Save to Drive
                   </button>
                   <a
-                    href={resultImage}
-                    download="inpainted-image.png"
-                    className="btn-secondary text-sm"
-                  >
-                    <Download className="w-4 h-4 mr-1" />
-                    Download
-                  </a>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">ก่อน</p>
-                  <img src={baseImage} alt="Original" className="w-full rounded-lg border" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">หลัง</p>
-                  <img src={resultImage} alt="Result" className="w-full rounded-lg border" />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+               <a
+  href={resultImage || ''}
+  download="inpainted-image.png"
+  className="btn-secondary text-sm"
+>
+  <Download className="w-4 h-4 mr-1" />
+  Download
+</a>
+</div>
+</div>
 
-      {/* Hidden File Input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleImageUpload}
-        className="hidden"
-      />
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div>
+    <p className="text-sm font-medium text-gray-700 mb-2">ก่อน</p>
+    <img src={baseImage || ''} alt="Original" className="w-full rounded-lg border" />
+  </div>
+  <div>
+    <p className="text-sm font-medium text-gray-700 mb-2">หลัง</p>
+    <img src={resultImage || ''} alt="Result" className="w-full rounded-lg border" />
+  </div>
+</div>
+</div>
+)}
+</div>
+</div>
 
-      {/* Save Modal */}
-      {showSaveModal && resultImage && (
-        <SaveToGoogleDriveModal
-          image={resultImage}
+{/* Hidden File Input */}
+<input
+  ref={fileInputRef}
+  type="file"
+  accept="image/*"
+  onChange={handleImageUpload}
+  className="hidden"
+/>
+
+{/* Save Modal */}
+{showSaveModal && resultImage && (
+  <SaveToGoogleDriveModal image={resultImage || ''} />
+)}
+
           onSave={handleSave}
           onClose={() => setShowSaveModal(false)}
         />
