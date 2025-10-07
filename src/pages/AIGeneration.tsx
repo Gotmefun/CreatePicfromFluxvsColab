@@ -74,36 +74,61 @@ export default function AIGeneration() {
       return;
     }
 
+    // เช็คว่าตั้งค่า API Endpoint หรือยัง
+    if (!state.settings.colab.apiEndpoint) {
+      alert('⚠️ กรุณาตั้งค่า API Endpoint ที่ Settings > Google Colab ก่อน');
+      return;
+    }
+
     setIsGenerating(true);
     setProgress(0);
 
     try {
-      // Simulate API call to Google Colab
+      // Progress simulation
       const progressInterval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(progressInterval);
-            return 95;
-          }
-          return prev + Math.random() * 10;
-        });
-      }, 200);
+        setProgress(prev => Math.min(prev + 5, 90));
+      }, 500);
 
-      // Mock generation - replace with actual Colab API call
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
+      console.log('🚀 กำลังเรียก Colab API:', state.settings.colab.apiEndpoint);
+
+      // เรียก Colab API จริง
+      const response = await fetch(`${state.settings.colab.apiEndpoint}/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: prompt,
+          negative_prompt: negativePrompt,
+          steps: generationSettings.steps,
+          guidance_scale: generationSettings.cfgScale,
+          width: generationSettings.width,
+          height: generationSettings.height,
+          seed: generationSettings.seed
+        })
+      });
+
       clearInterval(progressInterval);
-      setProgress(100);
 
-      // Generate mock image (replace with actual response)
-      const mockImage = createMockImage();
-      setGeneratedImage(mockImage);
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success || !data.image) {
+        throw new Error(data.error || 'ไม่สามารถสร้างรูปได้');
+      }
+
+      console.log('✅ สร้างรูปสำเร็จ!');
+      setProgress(100);
+      setGeneratedImage(data.image);
 
       // Save to generated images
       const newImage: GeneratedImage = {
         id: Date.now().toString(),
         filename: `generated_${Date.now()}.png`,
-        url: mockImage,
+        url: data.image,
         prompt,
         negativePrompt: negativePrompt || undefined,
         settings: generationSettings,
