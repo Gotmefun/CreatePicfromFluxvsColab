@@ -28,6 +28,11 @@ export default function Settings() {
     drive: 'disconnected'
   });
 
+  // Sync settings กับ state เมื่อ state เปลี่ยน
+  React.useEffect(() => {
+    setSettings(state.settings);
+  }, [state.settings]);
+
   const tabs = [
     { id: 'general', name: 'ทั่วไป', icon: SettingsIcon },
     { id: 'colab', name: 'Google Colab', icon: Link },
@@ -36,8 +41,10 @@ export default function Settings() {
   ] as const;
 
   const handleSave = () => {
+    console.log('💾 กำลังบันทึก settings:', settings);
     dispatch({ type: 'SET_SETTINGS', payload: settings });
-    alert('บันทึกการตั้งค่าเรียบร้อย');
+    console.log('✅ ส่ง dispatch เรียบร้อย');
+    alert('บันทึกการตั้งค่าเรียบร้อย! 🎉');
   };
 
   const testConnection = async (service: 'colab' | 'drive') => {
