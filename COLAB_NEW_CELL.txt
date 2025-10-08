@@ -1,0 +1,307 @@
+# ===================================================================
+# คัดลอก Code ด้านล่างนี้ไปเพิ่มเป็น Cell ใหม่ใน Colab Notebook
+# เพิ่มหลังจาก Cell 1.0.2
+# ===================================================================
+
+#@title ## 1.0.3 🌐 Start API Server (รันหลังจาก WebUI เปิดแล้ว) { display-mode: "form" }
+
+#@markdown ---
+#@markdown ### 📡 API Server สำหรับเชื่อมต่อกับเว็บไซต์
+#@markdown รัน Cell นี้เพื่อเปิด API Server ที่จะเชื่อมต่อระหว่าง SD WebUI กับเว็บไซต์ของคุณ
+
+import os
+import time
+import subprocess
+import threading
+from IPython.display import clear_output, display, HTML
+
+# ติดตั้ง dependencies
+print("📦 กำลังติดตั้ง dependencies...")
+!pip install -q flask flask-cors pyngrok
+
+# สร้างโฟลเดอร์ api
+!mkdir -p /content/api
+
+# สร้างไฟล์ API Server
+api_server_code = '''#!/usr/bin/env python3
+"""API Server สำหรับเชื่อมต่อ Stable Diffusion WebUI กับเว็บไซต์"""
+
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import requests
+import base64
+
+app = Flask(__name__)
+CORS(app)
+
+SD_WEBUI_URL = "http://127.0.0.1:7860"
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    try:
+        response = requests.get(f"{SD_WEBUI_URL}/sdapi/v1/options", timeout=5)
+        if response.status_code == 200:
+            return jsonify({"status": "healthy", "sd_webui": "connected", "message": "พร้อมใช้งาน"})
+        return jsonify({"status": "degraded", "sd_webui": "error"}), 500
+    except Exception as e:
+        return jsonify({"status": "unhealthy", "error": str(e)}), 500
+
+@app.route('/models', methods=['GET'])
+def get_models():
+    try:
+        response = requests.get(f"{SD_WEBUI_URL}/sdapi/v1/sd-models")
+        if response.status_code == 200:
+            models = response.json()
+            return jsonify({"success": True, "models": [model["title"] for model in models]})
+        return jsonify({"success": False, "error": "ไม่สามารถดึง models ได้"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/generate', methods=['POST'])
+def generate_image():
+    try:
+        data = request.json
+        prompt = data.get('prompt', '')
+        negative_prompt = data.get('negative_prompt', '')
+        steps = data.get('steps', 20)
+        cfg_scale = data.get('guidance_scale', 7.5)
+        width = data.get('width', 512)
+        height = data.get('height', 512)
+        seed = data.get('seed', -1)
+
+        if not prompt:
+            return jsonify({"success": False, "error": "กรุณาใส่ prompt"}), 400
+
+        print(f"🎨 สร้างรูป: {prompt[:50]}...")
+
+        payload = {
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "steps": steps,
+            "cfg_scale": cfg_scale,
+            "width": width,
+            "height": height,
+            "seed": seed,
+            "sampler_name": "DPM++ 2M Karras",
+            "batch_size": 1,
+            "n_iter": 1,
+            "save_images": True,
+            "send_images": True,
+        }
+
+        response = requests.post(f"{SD_WEBUI_URL}/sdapi/v1/txt2img", json=payload, timeout=300)
+
+        if response.status_code != 200:
+            return jsonify({"success": False, "error": f"API error: {response.status_code}"}), 500
+
+        result = response.json()
+
+        if 'images' in result and len(result['images']) > 0:
+            image_base64 = result['images'][0]
+            image_data_url = f"data:image/png;base64,{image_base64}"
+            print("✅ สร้างรูปสำเร็จ!")
+
+            return jsonify({
+                "success": True,
+                "image": image_data_url,
+                "info": result.get('info', {}),
+                "parameters": {
+                    "prompt": prompt,
+                    "negative_prompt": negative_prompt,
+                    "steps": steps,
+                    "cfg_scale": cfg_scale,
+                    "width": width,
+                    "height": height,
+                    "seed": result.get('parameters', {}).get('seed', seed)
+                }
+            })
+        return jsonify({"success": False, "error": "ไม่พบรูปภาพ"}), 500
+
+    except requests.Timeout:
+        return jsonify({"success": False, "error": "Timeout"}), 504
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/img2img', methods=['POST'])
+def img2img():
+    try:
+        data = request.json
+        prompt = data.get('prompt', '')
+        negative_prompt = data.get('negative_prompt', '')
+        init_image = data.get('init_image', '')
+        denoising_strength = data.get('denoising_strength', 0.7)
+        steps = data.get('steps', 20)
+        cfg_scale = data.get('guidance_scale', 7.5)
+        width = data.get('width', 512)
+        height = data.get('height', 512)
+
+        if not prompt or not init_image:
+            return jsonify({"success": False, "error": "กรุณาใส่ prompt และรูปภาพ"}), 400
+
+        if ',' in init_image:
+            init_image = init_image.split(',')[1]
+
+        print(f"🎨 แปลงรูป: {prompt[:50]}...")
+
+        payload = {
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "init_images": [init_image],
+            "denoising_strength": denoising_strength,
+            "steps": steps,
+            "cfg_scale": cfg_scale,
+            "width": width,
+            "height": height,
+            "sampler_name": "DPM++ 2M Karras",
+            "batch_size": 1,
+            "n_iter": 1,
+        }
+
+        response = requests.post(f"{SD_WEBUI_URL}/sdapi/v1/img2img", json=payload, timeout=300)
+
+        if response.status_code != 200:
+            return jsonify({"success": False, "error": f"API error: {response.status_code}"}), 500
+
+        result = response.json()
+
+        if 'images' in result and len(result['images']) > 0:
+            image_base64 = result['images'][0]
+            image_data_url = f"data:image/png;base64,{image_base64}"
+            print("✅ แปลงรูปสำเร็จ!")
+            return jsonify({"success": True, "image": image_data_url, "info": result.get('info', {})})
+
+        return jsonify({"success": False, "error": "ไม่พบรูปภาพ"}), 500
+
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({
+        "name": "Colab SD WebUI API Server",
+        "version": "1.0.0",
+        "endpoints": {
+            "health": "GET /health",
+            "models": "GET /models",
+            "generate": "POST /generate",
+            "img2img": "POST /img2img"
+        },
+        "status": "running"
+    })
+
+if __name__ == '__main__':
+    print("=" * 60)
+    print("🚀 Colab SD WebUI API Server Starting...")
+    print("=" * 60)
+    app.run(host='0.0.0.0', port=8000, debug=False)
+'''
+
+# เขียนไฟล์ API Server
+with open('/content/api/colab_api_server.py', 'w') as f:
+    f.write(api_server_code)
+
+print("✅ สร้างไฟล์ API Server สำเร็จ")
+
+# ฟังก์ชันรัน API Server
+def run_api_server():
+    os.chdir('/content/api')
+    subprocess.run(['python', 'colab_api_server.py'])
+
+# รัน API Server ใน background thread
+print("🚀 เริ่ม API Server...")
+server_thread = threading.Thread(target=run_api_server, daemon=True)
+server_thread.start()
+
+# รอให้ server เริ่มทำงาน
+time.sleep(5)
+
+# ทดสอบว่า API Server ทำงานหรือไม่
+import requests
+try:
+    response = requests.get('http://127.0.0.1:8000/health', timeout=5)
+    if response.status_code == 200:
+        print("✅ API Server ทำงานปกติ!\n")
+    else:
+        print("⚠️ API Server อาจมีปัญหา\n")
+except Exception as e:
+    print(f"⚠️ ไม่สามารถเชื่อมต่อ API Server: {e}\n")
+
+# สร้าง Public URL ด้วย ngrok
+print("🌐 กำลังสร้าง Public URL...")
+
+USE_NGROK = True  #@param {type:"boolean"}
+NGROK_TOKEN = ""  #@param {type:"string"}
+
+if USE_NGROK:
+    from pyngrok import ngrok
+
+    # ตั้งค่า ngrok token (ถ้ามี)
+    if NGROK_TOKEN:
+        ngrok.set_auth_token(NGROK_TOKEN)
+
+    try:
+        # สร้าง tunnel
+        public_url = ngrok.connect(8000)
+
+        clear_output()
+
+        # แสดงผลลัพธ์
+        display(HTML(f'''
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 15px; color: white; font-family: Arial;">
+            <h1 style="margin: 0 0 20px 0; font-size: 32px;">✅ API Server พร้อมใช้งาน!</h1>
+
+            <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; margin: 20px 0;">
+                <h2 style="margin: 0 0 10px 0; font-size: 20px;">🌐 Public URL</h2>
+                <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; font-family: monospace; font-size: 18px; word-break: break-all;">
+                    {public_url}
+                </div>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; margin: 20px 0;">
+                <h3 style="margin: 0 0 15px 0;">📝 ขั้นตอนต่อไป:</h3>
+                <ol style="margin: 0; padding-left: 20px; line-height: 1.8;">
+                    <li>คัดลอก URL ด้านบน</li>
+                    <li>เปิดเว็บไซต์ <a href="https://aigen.ptee88.com" style="color: #ffd700;">https://aigen.ptee88.com</a></li>
+                    <li>ไปที่ Settings ⚙️</li>
+                    <li>เลื่อนลงมาที่ <strong>Google Colab Settings</strong></li>
+                    <li>วาง URL ลงในช่อง <strong>API Endpoint</strong></li>
+                    <li>กด <strong>Save Settings</strong></li>
+                    <li>ไปที่หน้า <strong>AI Generation</strong> และทดสอบสร้างรูป!</li>
+                </ol>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px;">
+                <p style="margin: 0; font-size: 14px;">💡 <strong>Tips:</strong> เซฟ URL นี้ไว้ ถ้าปิด Colab จะต้องรันใหม่และได้ URL ใหม่</p>
+            </div>
+        </div>
+        '''))
+
+        print("\n" + "="*70)
+        print("🔗 API Endpoints:")
+        print("="*70)
+        print(f"   Health Check:  {public_url}/health")
+        print(f"   List Models:   {public_url}/models")
+        print(f"   Generate:      {public_url}/generate (POST)")
+        print(f"   Img2Img:       {public_url}/img2img (POST)")
+        print("="*70)
+
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการสร้าง ngrok tunnel: {e}")
+        print("\n💡 วิธีแก้:")
+        print("   1. ไปที่ https://dashboard.ngrok.com/get-started/your-authtoken")
+        print("   2. คัดลอก token")
+        print("   3. ใส่ใน NGROK_TOKEN ด้านบน")
+        print("   4. รัน Cell นี้อีกครั้ง")
+else:
+    print("="*70)
+    print("✅ API Server ทำงานแล้ว (Local Only)")
+    print("="*70)
+    print("🔗 Local URL: http://127.0.0.1:8000")
+    print("="*70)
+    print("\n⚠️ หากต้องการเชื่อมต่อจากภายนอก:")
+    print("   1. เปิดใช้งาน USE_NGROK = True")
+    print("   2. ใส่ NGROK_TOKEN")
+    print("   3. รัน Cell อีกครั้ง")
+    print("="*70)

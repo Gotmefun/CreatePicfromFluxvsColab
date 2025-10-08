@@ -229,9 +229,9 @@ export default function Settings() {
                     <input
                       type="checkbox"
                       checked={settings.autoSave}
-                      onChange={(e) => setSettings(prev => ({ 
-                        ...prev, 
-                        autoSave: e.target.checked 
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        autoSave: e.target.checked
                       }))}
                       className="mr-2"
                     />
@@ -241,6 +241,32 @@ export default function Settings() {
                   </label>
                   <p className="text-xs text-gray-600 mt-1 ml-6">
                     เมื่อเปิดใช้งาน รูปที่สร้างจะถูกบันทึกไปยัง Google Drive โดยอัตโนมัติ
+                  </p>
+                </div>
+
+                <div className="border-t pt-6">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={settings.nsfwMode}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        nsfwMode: e.target.checked
+                      }))}
+                      className="mr-2"
+                    />
+                    <span className="text-sm font-medium text-gray-900">
+                      🔞 Enable NSFW Mode (18+)
+                    </span>
+                  </label>
+                  <p className="text-xs text-gray-600 mt-2 ml-6">
+                    เปิดใช้งานโหมดสร้างภาพแบบไม่จำกัด (สำหรับการใช้งานส่วนตัวเท่านั้น)
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1 ml-6">
+                    • ไม่ใส่ "nsfw, nude" ใน Negative Prompt อัตโนมัติ
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1 ml-6">
+                    • แสดง Prompt Templates สำหรับ NSFW Content
                   </p>
                 </div>
               </div>

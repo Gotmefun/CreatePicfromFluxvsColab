@@ -1,0 +1,44 @@
+=== COLAB SETUP FOR FLUX AI ===
+
+Cell 1: Install packages
+!pip install -q diffusers transformers accelerate torch torchvision flask pyngrok
+
+Cell 2: Load Model
+from diffusers import FluxPipeline
+import torch
+model_id = "black-forest-labs/FLUX.1-schnell"
+pipe = FluxPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
+pipe.to("cuda")
+print("Model loaded!")
+
+Cell 3: API Server
+from flask import Flask, request, jsonify, make_response
+from pyngrok import ngrok
+import threading, base64
+from io import BytesIO
+
+app = Flask(__name__)
+
+@app.after_request
+def cors(r):
+    r.headers['Access-Control-Allow-Origin'] = '*'
+    r.headers['Access-Control-Allow-Methods'] = 'POST,OPTIONS'
+    r.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return r
+
+@app.route('/generate', methods=['POST','OPTIONS'])
+def gen():
+    if request.method == 'OPTIONS':
+        return '', 204
+    data = request.json
+    img = pipe(data['prompt'], num_inference_steps=4, height=512, width=512).images[0]
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return jsonify({'success': True, 'image': 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()})
+
+ngrok.set_auth_token("33jslJ7qBdnf0vJTveRBmj7giBT_5Kp61JVP5iYwmoms2ud9Z")
+url = ngrok.connect(5000)
+print(f"URL: {url}")
+threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000)).start()
+
+=== END ===

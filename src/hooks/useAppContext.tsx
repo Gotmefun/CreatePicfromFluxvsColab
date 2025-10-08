@@ -43,7 +43,8 @@ const initialState: AppState = {
     },
     defaultModel: 'flux-ai',
     autoSave: true,
-    theme: 'light'
+    theme: 'light',
+    nsfwMode: false
   },
    loading: false
 };

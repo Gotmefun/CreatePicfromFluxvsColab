@@ -97,4 +97,5 @@ export interface AppSettings {
   defaultModel: AIModel;
   autoSave: boolean;
   theme: 'light' | 'dark';
+  nsfwMode: boolean;
 }

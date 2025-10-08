@@ -61,6 +61,58 @@ export default function AIGeneration() {
     'creative portrait, artistic style, dramatic lighting'
   ];
 
+  // NSFW Prompt Templates
+  const nsfwPromptTemplates = [
+    {
+      name: 'Artistic Nude',
+      prompt: 'beautiful woman, artistic nude, professional photography, soft lighting, elegant pose, photorealistic, detailed skin, 8k uhd, high quality',
+      negative: 'ugly, bad anatomy, bad hands, bad quality, blurry, low resolution'
+    },
+    {
+      name: 'Intimate Scene',
+      prompt: 'intimate romantic scene, two people, bedroom, cinematic lighting, photorealistic, passionate, sensual, detailed, 8k uhd',
+      negative: 'ugly, bad anatomy, bad proportions, bad quality, blurry, cartoon, low resolution'
+    },
+    {
+      name: 'Sensual Portrait',
+      prompt: 'sensual portrait, beautiful woman, bedroom, natural lighting, photorealistic, detailed skin texture, 8k uhd',
+      negative: 'ugly, bad anatomy, bad quality, blurry, cartoon, 3d'
+    },
+    {
+      name: 'Realistic Nude',
+      prompt: 'RAW photo, beautiful asian woman, nude, natural lighting, bedroom, photorealistic, detailed face, detailed skin, 8k uhd, dslr',
+      negative: 'cartoon, 3d, anime, painting, ugly, bad quality, blurry'
+    },
+    {
+      name: 'Explicit Content',
+      prompt: 'explicit sexual content, photorealistic, bedroom scene, detailed anatomy, cinematic lighting, high detail, 8k uhd, professional photography',
+      negative: 'ugly, bad anatomy, deformed, bad quality, blurry, cartoon, 3d, low resolution'
+    }
+  ];
+
+  // Aspect Ratio Presets สำหรับแพลตฟอร์มต่างๆ
+  const aspectRatioPresets = [
+    { id: 'custom', name: 'กำหนดเอง', width: 512, height: 512, icon: '⚙️' },
+    { id: 'square', name: 'สี่เหลี่ยมจัตุรัส (1:1)', width: 1024, height: 1024, icon: '⬜', description: 'Instagram Post' },
+    { id: 'tiktok', name: 'แนวตั้ง TikTok (9:16)', width: 720, height: 1280, icon: '📱', description: 'TikTok, Instagram Reels' },
+    { id: 'facebook-reel', name: 'แนวตั้ง Facebook Reel (9:16)', width: 720, height: 1280, icon: '📱', description: 'Facebook Reels' },
+    { id: 'youtube', name: 'แนวนอน YouTube (16:9)', width: 1280, height: 720, icon: '🎬', description: 'YouTube Thumbnail' },
+    { id: 'youtube-short', name: 'แนวตั้ง YouTube Shorts (9:16)', width: 720, height: 1280, icon: '📹', description: 'YouTube Shorts' },
+    { id: 'twitter', name: 'Twitter Post (16:9)', width: 1200, height: 675, icon: '🐦', description: 'Twitter/X' },
+    { id: 'story', name: 'Instagram Story (9:16)', width: 1080, height: 1920, icon: '📲', description: 'Instagram/Facebook Story' }
+  ];
+
+  const handleAspectRatioChange = (presetId: string) => {
+    const preset = aspectRatioPresets.find(p => p.id === presetId);
+    if (preset) {
+      setGenerationSettings(prev => ({
+        ...prev,
+        width: preset.width,
+        height: preset.height
+      }));
+    }
+  };
+
   const handleReferenceSelect = (category: keyof typeof selectedReferences, reference: Reference) => {
     setSelectedReferences(prev => ({
       ...prev,
@@ -91,6 +143,16 @@ export default function AIGeneration() {
 
       console.log('🚀 กำลังเรียก Colab API:', state.settings.colab.apiEndpoint);
 
+      // ปรับ negative prompt ตาม NSFW mode
+      let finalNegativePrompt = negativePrompt;
+      if (!state.settings.nsfwMode) {
+        // ถ้าปิด NSFW mode = เพิ่ม NSFW blocking keywords
+        const nsfwBlockKeywords = 'nsfw, nude, naked, explicit, adult content, sexual';
+        finalNegativePrompt = finalNegativePrompt
+          ? `${finalNegativePrompt}, ${nsfwBlockKeywords}`
+          : nsfwBlockKeywords;
+      }
+
       // เรียก Colab API จริง
       const response = await fetch(`${state.settings.colab.apiEndpoint}/generate`, {
         method: 'POST',
@@ -99,7 +161,7 @@ export default function AIGeneration() {
         },
         body: JSON.stringify({
           prompt: prompt,
-          negative_prompt: negativePrompt,
+          negative_prompt: finalNegativePrompt,
           steps: generationSettings.steps,
           guidance_scale: generationSettings.cfgScale,
           width: generationSettings.width,
@@ -448,6 +510,32 @@ export default function AIGeneration() {
                 ))}
               </div>
             </div>
+
+            {/* NSFW Prompt Templates */}
+            {state.settings.nsfwMode && (
+              <div className="mt-4 border-t pt-4">
+                <p className="text-sm font-medium text-gray-900 mb-2 flex items-center">
+                  🔞 NSFW Templates
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {nsfwPromptTemplates.map((template, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setPrompt(template.prompt);
+                        setNegativePrompt(template.negative);
+                      }}
+                      className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-900 px-3 py-1.5 rounded-lg transition-colors font-medium"
+                    >
+                      {template.name}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 คลิกเพื่อใช้ template พร้อม negative prompt ที่เหมาะสม
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Generation Settings */}
@@ -457,53 +545,90 @@ export default function AIGeneration() {
                 <Sliders className="w-5 h-5 mr-2" />
                 Generation Settings
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Steps</label>
-                  <input
-                    type="number"
-                    min="10"
-                    max="50"
-                    value={generationSettings.steps}
-                    onChange={(e) => setGenerationSettings(prev => ({ ...prev, steps: parseInt(e.target.value) }))}
-                    className="input-field"
-                  />
+
+              {/* Aspect Ratio Presets */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  📐 ขนาดภาพสำหรับแพลตฟอร์ม
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {aspectRatioPresets.map(preset => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handleAspectRatioChange(preset.id)}
+                      className={`
+                        p-3 rounded-lg border-2 transition-all text-left
+                        ${generationSettings.width === preset.width && generationSettings.height === preset.height
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'
+                        }
+                      `}
+                    >
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="text-xl">{preset.icon}</span>
+                        <span className="font-medium text-sm">{preset.name}</span>
+                      </div>
+                      {preset.description && (
+                        <p className="text-xs text-gray-500">{preset.description}</p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1">{preset.width} × {preset.height}</p>
+                    </button>
+                  ))}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">CFG Scale</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="20"
-                    step="0.5"
-                    value={generationSettings.cfgScale}
-                    onChange={(e) => setGenerationSettings(prev => ({ ...prev, cfgScale: parseFloat(e.target.value) }))}
-                    className="input-field"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Width</label>
-                  <select
-                    value={generationSettings.width}
-                    onChange={(e) => setGenerationSettings(prev => ({ ...prev, width: parseInt(e.target.value) }))}
-                    className="input-field"
-                  >
-                    <option value="512">512</option>
-                    <option value="768">768</option>
-                    <option value="1024">1024</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Height</label>
-                  <select
-                    value={generationSettings.height}
-                    onChange={(e) => setGenerationSettings(prev => ({ ...prev, height: parseInt(e.target.value) }))}
-                    className="input-field"
-                  >
-                    <option value="512">512</option>
-                    <option value="768">768</option>
-                    <option value="1024">1024</option>
-                  </select>
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  ⚙️ ตั้งค่าขั้นสูง
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Steps</label>
+                    <input
+                      type="number"
+                      min="10"
+                      max="50"
+                      value={generationSettings.steps}
+                      onChange={(e) => setGenerationSettings(prev => ({ ...prev, steps: parseInt(e.target.value) }))}
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">CFG Scale</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      step="0.5"
+                      value={generationSettings.cfgScale}
+                      onChange={(e) => setGenerationSettings(prev => ({ ...prev, cfgScale: parseFloat(e.target.value) }))}
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Width</label>
+                    <input
+                      type="number"
+                      min="512"
+                      max="2048"
+                      step="64"
+                      value={generationSettings.width}
+                      onChange={(e) => setGenerationSettings(prev => ({ ...prev, width: parseInt(e.target.value) }))}
+                      className="input-field"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Height</label>
+                    <input
+                      type="number"
+                      min="512"
+                      max="2048"
+                      step="64"
+                      value={generationSettings.height}
+                      onChange={(e) => setGenerationSettings(prev => ({ ...prev, height: parseInt(e.target.value) }))}
+                      className="input-field"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

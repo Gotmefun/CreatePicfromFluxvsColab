@@ -1,0 +1,104 @@
+# ===================================================================
+# 🔞 เพิ่ม Cell นี้ใน ZenityX_SD_Webui_Colab_V3.ipynb
+# เพิ่มหลัง Cell 2.0.1 (ก่อน Cell 3.0)
+# ===================================================================
+
+#@title ## 2.0.2 🔞 Download NSFW Uncensored Models { display-mode: "form" }
+
+#@markdown ---
+#@markdown ### 📦 Uncensored Models สำหรับสร้างภาพแบบไม่จำกัด
+#@markdown เลือก Model ที่ต้องการดาวน์โหลด (สามารถเลือกได้หลายตัว)
+
+import os
+
+download_path = "/content/drive/MyDrive/SD-Model/Checkpoint/"
+
+# NSFW-Friendly Models
+ChilloutMix = True  #@param {type:"boolean"}
+RealisticVision_v60 = False  #@param {type:"boolean"}
+DreamShaper_8 = False  #@param {type:"boolean"}
+CyberRealistic_v33 = False  #@param {type:"boolean"}
+
+def download_file(file_name, file_url, should_download, model_name):
+    """ฟังก์ชันดาวน์โหลดไฟล์"""
+    if should_download:
+        full_path = os.path.join(download_path, file_name)
+        if not os.path.exists(full_path):
+            print(f"📥 กำลังดาวน์โหลด {model_name}...")
+            print(f"   ขนาดโดยประมาณ: ~2GB")
+            print(f"   URL: {file_url}")
+            !aria2c --console-log-level=warn -c -x 16 -s 16 -k 1M {file_url} -d {download_path} -o {file_name}
+            print(f"✅ ดาวน์โหลด {model_name} สำเร็จ!")
+        else:
+            print(f"✅ {file_name} มีอยู่แล้ว ข้ามการดาวน์โหลด")
+
+# รายการ Models
+models = [
+    ("chilloutmix_NiPrunedFp32Fix.safetensors",
+     "https://civitai.com/api/download/models/11745",
+     ChilloutMix,
+     "ChilloutMix (Asian, Realistic, NSFW)"),
+
+    ("realisticVisionV60B1_v60B1VAE.safetensors",
+     "https://civitai.com/api/download/models/245598",
+     RealisticVision_v60,
+     "Realistic Vision v6.0 (Ultra Realistic, NSFW)"),
+
+    ("dreamshaper_8.safetensors",
+     "https://civitai.com/api/download/models/128713",
+     DreamShaper_8,
+     "DreamShaper 8 (All-Purpose, NSFW)"),
+
+    ("cyberrealistic_v33.safetensors",
+     "https://civitai.com/api/download/models/138176",
+     CyberRealistic_v33,
+     "CyberRealistic v3.3 (Hyper Realistic, NSFW)")
+]
+
+print("=" * 70)
+print("🔞 NSFW UNCENSORED MODELS DOWNLOADER")
+print("=" * 70)
+print("สำหรับการใช้งานส่วนตัวเท่านั้น")
+print("=" * 70)
+print("")
+
+# ดาวน์โหลดตาม checkbox
+download_count = 0
+for file_name, file_url, should_download, model_name in models:
+    if should_download:
+        download_count += 1
+        download_file(file_name, file_url, should_download, model_name)
+        print("")
+
+if download_count == 0:
+    print("⚠️  ไม่ได้เลือก Model ใดๆ")
+    print("💡 เลือก Model ที่ต้องการจาก checkbox ด้านบน")
+else:
+    print("=" * 70)
+    print(f"✅ ดาวน์โหลด {download_count} Models เรียบร้อย!")
+    print("=" * 70)
+    print("")
+    print("📝 Models ที่ดาวน์โหลด:")
+    if ChilloutMix:
+        print("   ✓ ChilloutMix - Asian, Realistic, NSFW-friendly")
+    if RealisticVision_v60:
+        print("   ✓ Realistic Vision v6.0 - Ultra Realistic, Detailed")
+    if DreamShaper_8:
+        print("   ✓ DreamShaper 8 - All-Purpose, Versatile")
+    if CyberRealistic_v33:
+        print("   ✓ CyberRealistic v3.3 - Hyper Realistic")
+    print("")
+    print("=" * 70)
+    print("🎯 วิธีใช้งาน:")
+    print("=" * 70)
+    print("1. รัน Cell 1.0.1 เพื่อเริ่ม WebUI")
+    print("2. เลือก Model จากเมนู Checkpoint")
+    print("3. สร้างรูปโดยไม่ต้องใส่ 'nsfw, nude' ใน Negative Prompt")
+    print("")
+    print("💡 Prompt Tips:")
+    print("   - ใช้: 'beautiful woman, artistic nude, professional photography'")
+    print("   - Negative: 'ugly, bad quality, blurry' (ไม่ต้องใส่ nsfw)")
+    print("=" * 70)
+    print("")
+    print("📚 อ่านคู่มือเพิ่มเติม: SD_NSFW_Colab.md")
+    print("=" * 70)
