@@ -185,10 +185,45 @@ export default function AIGeneration() {
     setPrompt(suggestion);
   };
 
-  const handleSave = (options: SaveOptions) => {
-    console.log('Saving to Google Drive:', options);
-    // Implement Google Drive save logic
-    setShowSaveModal(false);
+  const handleSave = async (options: SaveOptions) => {
+    if (!generatedImage) return;
+
+    try {
+      console.log('💾 Saving to Google Drive:', options);
+
+      // TODO: เชื่อมต่อ Google Drive API จริง
+      // ตอนนี้บันทึกลง localStorage ก่อน
+
+      const imageToSave: GeneratedImage = {
+        id: Date.now().toString(),
+        filename: options.filename || `ai-gen-${Date.now()}.png`,
+        url: generatedImage,
+        prompt,
+        negativePrompt: negativePrompt || undefined,
+        settings: generationSettings,
+        references: Object.values(selectedReferences).filter(Boolean) as Reference[],
+        projectId: state.currentProject?.id || 'general',
+        createdAt: new Date(),
+        metadata: {
+          width: generationSettings.width,
+          height: generationSettings.height,
+          format: 'png',
+          size: 0,
+          tags: options.tags || [],
+          description: options.description
+        }
+      };
+
+      dispatch({ type: 'ADD_GENERATED_IMAGE', payload: imageToSave });
+
+      console.log('✅ บันทึกสำเร็จ!');
+      alert('✅ บันทึกรูปสำเร็จ! ดูได้ที่ Gallery');
+      setShowSaveModal(false);
+
+    } catch (error) {
+      console.error('❌ Save error:', error);
+      alert('เกิดข้อผิดพลาดในการบันทึก');
+    }
   };
 
   return (
