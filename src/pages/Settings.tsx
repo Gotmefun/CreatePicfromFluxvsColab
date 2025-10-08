@@ -256,17 +256,20 @@ export default function Settings() {
                       className="mr-2"
                     />
                     <span className="text-sm font-medium text-gray-900">
-                      🔞 Enable NSFW Mode (18+)
+                      🔞 NSFW Unlimited Mode (18+)
                     </span>
                   </label>
                   <p className="text-xs text-gray-600 mt-2 ml-6">
-                    เปิดใช้งานโหมดสร้างภาพแบบไม่จำกัด (สำหรับการใช้งานส่วนตัวเท่านั้น)
+                    โหมดสร้างภาพแบบไม่จำกัด - ไม่มีการกรอง ไม่มีข้อจำกัดใดๆ
                   </p>
                   <p className="text-xs text-gray-600 mt-1 ml-6">
-                    • ไม่ใส่ "nsfw, nude" ใน Negative Prompt อัตโนมัติ
+                    • สร้างได้ทุกอย่างที่ต้องการ (Unlimited Content)
                   </p>
                   <p className="text-xs text-gray-600 mt-1 ml-6">
-                    • แสดง Prompt Templates สำหรับ NSFW Content
+                    • ไม่มี Safety Filter, Content Warning, หรือข้อจำกัด
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1 ml-6">
+                    • แสดง NSFW Prompt Templates สำเร็จรูป
                   </p>
                 </div>
               </div>

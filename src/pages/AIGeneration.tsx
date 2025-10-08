@@ -61,7 +61,7 @@ export default function AIGeneration() {
     'creative portrait, artistic style, dramatic lighting'
   ];
 
-  // NSFW Prompt Templates
+  // NSFW Unlimited Prompt Templates
   const nsfwPromptTemplates = [
     {
       name: 'Artistic Nude',
@@ -69,24 +69,29 @@ export default function AIGeneration() {
       negative: 'ugly, bad anatomy, bad hands, bad quality, blurry, low resolution'
     },
     {
-      name: 'Intimate Scene',
-      prompt: 'intimate romantic scene, two people, bedroom, cinematic lighting, photorealistic, passionate, sensual, detailed, 8k uhd',
-      negative: 'ugly, bad anatomy, bad proportions, bad quality, blurry, cartoon, low resolution'
-    },
-    {
       name: 'Sensual Portrait',
-      prompt: 'sensual portrait, beautiful woman, bedroom, natural lighting, photorealistic, detailed skin texture, 8k uhd',
+      prompt: 'sensual portrait, beautiful woman, nude, bedroom, natural lighting, photorealistic, detailed skin texture, detailed face, 8k uhd',
       negative: 'ugly, bad anatomy, bad quality, blurry, cartoon, 3d'
     },
     {
       name: 'Realistic Nude',
-      prompt: 'RAW photo, beautiful asian woman, nude, natural lighting, bedroom, photorealistic, detailed face, detailed skin, 8k uhd, dslr',
+      prompt: 'RAW photo, beautiful asian woman, nude, natural lighting, bedroom, photorealistic, detailed face, detailed body, detailed skin, 8k uhd, dslr, professional',
       negative: 'cartoon, 3d, anime, painting, ugly, bad quality, blurry'
     },
     {
-      name: 'Explicit Content',
-      prompt: 'explicit sexual content, photorealistic, bedroom scene, detailed anatomy, cinematic lighting, high detail, 8k uhd, professional photography',
-      negative: 'ugly, bad anatomy, deformed, bad quality, blurry, cartoon, 3d, low resolution'
+      name: 'Intimate Scene',
+      prompt: 'intimate romantic scene, couple, bedroom, passionate, sensual, detailed anatomy, cinematic lighting, photorealistic, high detail, 8k uhd',
+      negative: 'ugly, bad anatomy, bad proportions, bad quality, blurry, cartoon'
+    },
+    {
+      name: 'Explicit Unlimited',
+      prompt: 'explicit sexual content, photorealistic, detailed anatomy, detailed genitalia, bedroom scene, cinematic lighting, ultra detailed, 8k uhd, professional photography, realistic skin texture',
+      negative: 'ugly, bad anatomy, deformed, bad quality, blurry, cartoon, 3d'
+    },
+    {
+      name: 'Adult Scene',
+      prompt: 'nsfw, adult sexual activity, explicit content, photorealistic, bedroom, detailed bodies, detailed anatomy, natural lighting, high detail, 8k uhd, professional',
+      negative: 'ugly, bad anatomy, deformed, blurry, low quality, cartoon'
     }
   ];
 
@@ -511,11 +516,12 @@ export default function AIGeneration() {
               </div>
             </div>
 
-            {/* NSFW Prompt Templates */}
+            {/* NSFW Unlimited Prompt Templates */}
             {state.settings.nsfwMode && (
-              <div className="mt-4 border-t pt-4">
-                <p className="text-sm font-medium text-gray-900 mb-2 flex items-center">
-                  🔞 NSFW Templates
+              <div className="mt-4 border-t pt-4 bg-purple-50 -mx-6 px-6 py-4 rounded-lg">
+                <p className="text-sm font-bold text-purple-900 mb-3 flex items-center">
+                  🔞 NSFW Unlimited Templates
+                  <span className="ml-2 text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">18+</span>
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {nsfwPromptTemplates.map((template, index) => (
@@ -525,14 +531,14 @@ export default function AIGeneration() {
                         setPrompt(template.prompt);
                         setNegativePrompt(template.negative);
                       }}
-                      className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-900 px-3 py-1.5 rounded-lg transition-colors font-medium"
+                      className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors font-semibold shadow-sm hover:shadow-md"
                     >
                       {template.name}
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  💡 คลิกเพื่อใช้ template พร้อม negative prompt ที่เหมาะสม
+                <p className="text-xs text-purple-700 mt-3 font-medium">
+                  💡 ไม่มีข้อจำกัด - คลิกเพื่อใช้ Prompt สำเร็จรูป
                 </p>
               </div>
             )}
