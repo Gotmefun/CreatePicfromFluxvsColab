@@ -158,8 +158,11 @@ export default function AIGeneration() {
           : nsfwBlockKeywords;
       }
 
-      // เรียก Colab API จริง
-      const response = await fetch(`${state.settings.colab.apiEndpoint}/generate`, {
+      // เรียก Stable Diffusion WebUI API
+      const apiUrl = `${state.settings.colab.apiEndpoint}/sdapi/v1/txt2img`;
+      console.log('📡 API URL:', apiUrl);
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -168,34 +171,42 @@ export default function AIGeneration() {
           prompt: prompt,
           negative_prompt: finalNegativePrompt,
           steps: generationSettings.steps,
-          guidance_scale: generationSettings.cfgScale,
+          cfg_scale: generationSettings.cfgScale,
           width: generationSettings.width,
           height: generationSettings.height,
-          seed: generationSettings.seed
+          seed: generationSettings.seed || -1,
+          sampler_name: "DPM++ 2M Karras",
+          restore_faces: false,
+          enable_hr: false
         })
       });
 
       clearInterval(progressInterval);
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error:', response.status, errorText);
         throw new Error(`API Error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
 
-      if (!data.success || !data.image) {
-        throw new Error(data.error || 'ไม่สามารถสร้างรูปได้');
+      if (!data.images || data.images.length === 0) {
+        throw new Error('ไม่สามารถสร้างรูปได้');
       }
 
       console.log('✅ สร้างรูปสำเร็จ!');
       setProgress(100);
-      setGeneratedImage(data.image);
+
+      // Convert base64 to data URL
+      const imageDataUrl = `data:image/png;base64,${data.images[0]}`;
+      setGeneratedImage(imageDataUrl);
 
       // Save to generated images
       const newImage: GeneratedImage = {
         id: Date.now().toString(),
         filename: `generated_${Date.now()}.png`,
-        url: data.image,
+        url: imageDataUrl,
         prompt,
         negativePrompt: negativePrompt || undefined,
         settings: generationSettings,
