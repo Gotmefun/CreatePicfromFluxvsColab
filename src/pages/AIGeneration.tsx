@@ -1,20 +1,22 @@
 import React, { useState, useRef } from 'react';
 import { useAppContext } from '../hooks/useAppContext';
 import { GenerationSettings, Reference, GeneratedImage, SaveOptions } from '../types';
-import { 
-  Play, 
-  Settings, 
-  Save, 
-  RefreshCw, 
-  Download, 
-  Eye, 
+import {
+  Play,
+  Settings,
+  Save,
+  RefreshCw,
+  Download,
+  Eye,
   EyeOff,
   Zap,
   Image as ImageIcon,
   Sliders,
   Wand2,
   Lightbulb,
-  Copy
+  Copy,
+  Plus,
+  Upload
 } from 'lucide-react';
 import SaveToGoogleDriveModal from '../components/SaveToGoogleDriveModal';
 
@@ -42,6 +44,12 @@ export default function AIGeneration() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [progress, setProgress] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // File input refs for each category
+  const faceFileInputRef = useRef<HTMLInputElement>(null);
+  const productFileInputRef = useRef<HTMLInputElement>(null);
+  const environmentFileInputRef = useRef<HTMLInputElement>(null);
+  const poseFileInputRef = useRef<HTMLInputElement>(null);
 
   const projectReferences = state.references.filter(ref => 
     !state.currentProject || ref.projectId === state.currentProject.id
@@ -99,12 +107,13 @@ export default function AIGeneration() {
   const aspectRatioPresets = [
     { id: 'custom', name: 'กำหนดเอง', width: 512, height: 512, icon: '⚙️' },
     { id: 'square', name: 'สี่เหลี่ยมจัตุรัส (1:1)', width: 1024, height: 1024, icon: '⬜', description: 'Instagram Post' },
-    { id: 'tiktok', name: 'แนวตั้ง TikTok (9:16)', width: 720, height: 1280, icon: '📱', description: 'TikTok, Instagram Reels' },
-    { id: 'facebook-reel', name: 'แนวตั้ง Facebook Reel (9:16)', width: 720, height: 1280, icon: '📱', description: 'Facebook Reels' },
-    { id: 'youtube', name: 'แนวนอน YouTube (16:9)', width: 1280, height: 720, icon: '🎬', description: 'YouTube Thumbnail' },
-    { id: 'youtube-short', name: 'แนวตั้ง YouTube Shorts (9:16)', width: 720, height: 1280, icon: '📹', description: 'YouTube Shorts' },
-    { id: 'twitter', name: 'Twitter Post (16:9)', width: 1200, height: 675, icon: '🐦', description: 'Twitter/X' },
-    { id: 'story', name: 'Instagram Story (9:16)', width: 1080, height: 1920, icon: '📲', description: 'Instagram/Facebook Story' }
+    { id: 'tiktok', name: 'TikTok (9:16)', width: 1080, height: 1920, icon: '📱', description: 'TikTok Full HD' },
+    { id: 'instagram-reel', name: 'Instagram Reels (9:16)', width: 1080, height: 1920, icon: '📸', description: 'Instagram Reels' },
+    { id: 'youtube-short', name: 'YouTube Shorts (9:16)', width: 1080, height: 1920, icon: '📹', description: 'YouTube Shorts' },
+    { id: 'facebook-reel', name: 'Facebook Reel (9:16)', width: 1080, height: 1920, icon: '👍', description: 'Facebook Reels' },
+    { id: 'story', name: 'Instagram Story (9:16)', width: 1080, height: 1920, icon: '📲', description: 'Instagram/Facebook Story' },
+    { id: 'youtube', name: 'YouTube (16:9)', width: 1920, height: 1080, icon: '🎬', description: 'YouTube Thumbnail/Video' },
+    { id: 'twitter', name: 'Twitter/X (16:9)', width: 1200, height: 675, icon: '🐦', description: 'Twitter/X Post' }
   ];
 
   const handleAspectRatioChange = (presetId: string) => {
@@ -123,6 +132,58 @@ export default function AIGeneration() {
       ...prev,
       [category]: prev[category]?.id === reference.id ? undefined : reference
     }));
+  };
+
+  // Handle file upload for references
+  const handleFileUpload = async (category: 'faces' | 'products' | 'environments' | 'poses', event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('กรุณาเลือกไฟล์รูปภาพเท่านั้น');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('ขนาดไฟล์ต้องไม่เกิน 10MB');
+      return;
+    }
+
+    try {
+      // Convert to base64
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const imageUrl = e.target?.result as string;
+
+        // Create new reference
+        const newReference: Reference = {
+          id: Date.now().toString(),
+          filename: file.name,
+          url: imageUrl,
+          category: category,
+          tags: [],
+          projectId: state.currentProject?.id || 'general',
+          uploadedAt: new Date()
+        };
+
+        // Add to state
+        dispatch({ type: 'ADD_REFERENCE', payload: newReference });
+
+        console.log(`✅ อัปโหลด Reference สำเร็จ: ${category}`);
+      };
+
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('เกิดข้อผิดพลาดในการอัปโหลดรูป');
+    }
+
+    // Reset input
+    event.target.value = '';
   };
 
   const generateImage = async () => {
@@ -147,6 +208,12 @@ export default function AIGeneration() {
       }, 500);
 
       console.log('🚀 กำลังเรียก Colab API:', state.settings.colab.apiEndpoint);
+      console.log('📸 Selected References:', {
+        face: selectedReferences.face?.filename,
+        product: selectedReferences.product?.filename,
+        environment: selectedReferences.environment?.filename,
+        pose: selectedReferences.pose?.filename
+      });
 
       // ปรับ negative prompt ตาม NSFW mode
       let finalNegativePrompt = negativePrompt;
@@ -348,122 +415,222 @@ export default function AIGeneration() {
         <div className="lg:col-span-1 space-y-6">
           {/* Face References */}
           <div className="card p-4">
-            <h3 className="font-medium text-gray-900 mb-3 flex items-center">
-              <ImageIcon className="w-4 h-4 mr-2" />
-              หน้าคน ({faceReferences.length})
+            <h3 className="font-medium text-gray-900 mb-3 flex items-center justify-between">
+              <span className="flex items-center">
+                <ImageIcon className="w-4 h-4 mr-2" />
+                หน้าคน ({faceReferences.length})
+              </span>
+              <button
+                onClick={() => faceFileInputRef.current?.click()}
+                className="btn-secondary text-xs px-2 py-1 flex items-center"
+                title="อัปโหลดรูปหน้าคน"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                เพิ่ม
+              </button>
             </h3>
-            <div className="grid grid-cols-2 gap-2">
-              {faceReferences.slice(0, 4).map(ref => (
-                <button
-                  key={ref.id}
-                  onClick={() => handleReferenceSelect('face', ref)}
-                  className={`
-                    relative rounded-lg overflow-hidden border-2 transition-all
-                    ${selectedReferences.face?.id === ref.id 
-                      ? 'border-primary-500 ring-2 ring-primary-200' 
-                      : 'border-gray-200 hover:border-gray-300'
-                    }
-                  `}
-                >
-                  <img src={ref.url} alt={ref.filename} className="w-full h-16 object-cover" />
-                  {selectedReferences.face?.id === ref.id && (
-                    <div className="absolute inset-0 bg-primary-500 bg-opacity-20 flex items-center justify-center">
-                      <div className="w-4 h-4 bg-primary-500 rounded-full"></div>
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
+            <input
+              ref={faceFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleFileUpload('faces', e)}
+              className="hidden"
+            />
+            {faceReferences.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {faceReferences.slice(0, 4).map(ref => (
+                  <button
+                    key={ref.id}
+                    onClick={() => handleReferenceSelect('face', ref)}
+                    className={`
+                      relative rounded-lg overflow-hidden border-2 transition-all
+                      ${selectedReferences.face?.id === ref.id
+                        ? 'border-primary-500 ring-2 ring-primary-200'
+                        : 'border-gray-200 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    <img src={ref.url} alt={ref.filename} className="w-full h-16 object-cover" />
+                    {selectedReferences.face?.id === ref.id && (
+                      <div className="absolute inset-0 bg-primary-500 bg-opacity-20 flex items-center justify-center">
+                        <div className="w-4 h-4 bg-primary-500 rounded-full"></div>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-gray-400 text-sm">
+                <Upload className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>ยังไม่มีรูป</p>
+                <p className="text-xs mt-1">คลิก "เพิ่ม" เพื่ออัปโหลด</p>
+              </div>
+            )}
           </div>
 
           {/* Product References */}
           <div className="card p-4">
-            <h3 className="font-medium text-gray-900 mb-3 flex items-center">
-              <ImageIcon className="w-4 h-4 mr-2" />
-              สินค้า ({productReferences.length})
+            <h3 className="font-medium text-gray-900 mb-3 flex items-center justify-between">
+              <span className="flex items-center">
+                <ImageIcon className="w-4 h-4 mr-2" />
+                สินค้า ({productReferences.length})
+              </span>
+              <button
+                onClick={() => productFileInputRef.current?.click()}
+                className="btn-secondary text-xs px-2 py-1 flex items-center"
+                title="อัปโหลดรูปสินค้า"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                เพิ่ม
+              </button>
             </h3>
-            <div className="grid grid-cols-2 gap-2">
-              {productReferences.slice(0, 4).map(ref => (
-                <button
-                  key={ref.id}
-                  onClick={() => handleReferenceSelect('product', ref)}
-                  className={`
-                    relative rounded-lg overflow-hidden border-2 transition-all
-                    ${selectedReferences.product?.id === ref.id 
-                      ? 'border-green-500 ring-2 ring-green-200' 
-                      : 'border-gray-200 hover:border-gray-300'
-                    }
-                  `}
-                >
-                  <img src={ref.url} alt={ref.filename} className="w-full h-16 object-cover" />
-                  {selectedReferences.product?.id === ref.id && (
-                    <div className="absolute inset-0 bg-green-500 bg-opacity-20 flex items-center justify-center">
-                      <div className="w-4 h-4 bg-green-500 rounded-full"></div>
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
+            <input
+              ref={productFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleFileUpload('products', e)}
+              className="hidden"
+            />
+            {productReferences.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {productReferences.slice(0, 4).map(ref => (
+                  <button
+                    key={ref.id}
+                    onClick={() => handleReferenceSelect('product', ref)}
+                    className={`
+                      relative rounded-lg overflow-hidden border-2 transition-all
+                      ${selectedReferences.product?.id === ref.id
+                        ? 'border-green-500 ring-2 ring-green-200'
+                        : 'border-gray-200 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    <img src={ref.url} alt={ref.filename} className="w-full h-16 object-cover" />
+                    {selectedReferences.product?.id === ref.id && (
+                      <div className="absolute inset-0 bg-green-500 bg-opacity-20 flex items-center justify-center">
+                        <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-gray-400 text-sm">
+                <Upload className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>ยังไม่มีรูป</p>
+                <p className="text-xs mt-1">คลิก "เพิ่ม" เพื่ออัปโหลด</p>
+              </div>
+            )}
           </div>
 
           {/* Environment References */}
           <div className="card p-4">
-            <h3 className="font-medium text-gray-900 mb-3 flex items-center">
-              <ImageIcon className="w-4 h-4 mr-2" />
-              สภาพแวดล้อม ({environmentReferences.length})
+            <h3 className="font-medium text-gray-900 mb-3 flex items-center justify-between">
+              <span className="flex items-center">
+                <ImageIcon className="w-4 h-4 mr-2" />
+                สภาพแวดล้อม ({environmentReferences.length})
+              </span>
+              <button
+                onClick={() => environmentFileInputRef.current?.click()}
+                className="btn-secondary text-xs px-2 py-1 flex items-center"
+                title="อัปโหลดรูปสภาพแวดล้อม"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                เพิ่ม
+              </button>
             </h3>
-            <div className="grid grid-cols-2 gap-2">
-              {environmentReferences.slice(0, 4).map(ref => (
-                <button
-                  key={ref.id}
-                  onClick={() => handleReferenceSelect('environment', ref)}
-                  className={`
-                    relative rounded-lg overflow-hidden border-2 transition-all
-                    ${selectedReferences.environment?.id === ref.id 
-                      ? 'border-purple-500 ring-2 ring-purple-200' 
-                      : 'border-gray-200 hover:border-gray-300'
-                    }
-                  `}
-                >
-                  <img src={ref.url} alt={ref.filename} className="w-full h-16 object-cover" />
-                  {selectedReferences.environment?.id === ref.id && (
-                    <div className="absolute inset-0 bg-purple-500 bg-opacity-20 flex items-center justify-center">
-                      <div className="w-4 h-4 bg-purple-500 rounded-full"></div>
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
+            <input
+              ref={environmentFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleFileUpload('environments', e)}
+              className="hidden"
+            />
+            {environmentReferences.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {environmentReferences.slice(0, 4).map(ref => (
+                  <button
+                    key={ref.id}
+                    onClick={() => handleReferenceSelect('environment', ref)}
+                    className={`
+                      relative rounded-lg overflow-hidden border-2 transition-all
+                      ${selectedReferences.environment?.id === ref.id
+                        ? 'border-purple-500 ring-2 ring-purple-200'
+                        : 'border-gray-200 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    <img src={ref.url} alt={ref.filename} className="w-full h-16 object-cover" />
+                    {selectedReferences.environment?.id === ref.id && (
+                      <div className="absolute inset-0 bg-purple-500 bg-opacity-20 flex items-center justify-center">
+                        <div className="w-4 h-4 bg-purple-500 rounded-full"></div>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-gray-400 text-sm">
+                <Upload className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>ยังไม่มีรูป</p>
+                <p className="text-xs mt-1">คลิก "เพิ่ม" เพื่ออัปโหลด</p>
+              </div>
+            )}
           </div>
 
           {/* Pose References */}
           <div className="card p-4">
-            <h3 className="font-medium text-gray-900 mb-3 flex items-center">
-              <ImageIcon className="w-4 h-4 mr-2" />
-              ท่าทาง ({poseReferences.length})
+            <h3 className="font-medium text-gray-900 mb-3 flex items-center justify-between">
+              <span className="flex items-center">
+                <ImageIcon className="w-4 h-4 mr-2" />
+                ท่าทาง ({poseReferences.length})
+              </span>
+              <button
+                onClick={() => poseFileInputRef.current?.click()}
+                className="btn-secondary text-xs px-2 py-1 flex items-center"
+                title="อัปโหลดรูปท่าทาง"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                เพิ่ม
+              </button>
             </h3>
-            <div className="grid grid-cols-2 gap-2">
-              {poseReferences.slice(0, 4).map(ref => (
-                <button
-                  key={ref.id}
-                  onClick={() => handleReferenceSelect('pose', ref)}
-                  className={`
-                    relative rounded-lg overflow-hidden border-2 transition-all
-                    ${selectedReferences.pose?.id === ref.id 
-                      ? 'border-orange-500 ring-2 ring-orange-200' 
-                      : 'border-gray-200 hover:border-gray-300'
-                    }
-                  `}
-                >
-                  <img src={ref.url} alt={ref.filename} className="w-full h-16 object-cover" />
-                  {selectedReferences.pose?.id === ref.id && (
-                    <div className="absolute inset-0 bg-orange-500 bg-opacity-20 flex items-center justify-center">
-                      <div className="w-4 h-4 bg-orange-500 rounded-full"></div>
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
+            <input
+              ref={poseFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleFileUpload('poses', e)}
+              className="hidden"
+            />
+            {poseReferences.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {poseReferences.slice(0, 4).map(ref => (
+                  <button
+                    key={ref.id}
+                    onClick={() => handleReferenceSelect('pose', ref)}
+                    className={`
+                      relative rounded-lg overflow-hidden border-2 transition-all
+                      ${selectedReferences.pose?.id === ref.id
+                        ? 'border-orange-500 ring-2 ring-orange-200'
+                        : 'border-gray-200 hover:border-gray-300'
+                      }
+                    `}
+                  >
+                    <img src={ref.url} alt={ref.filename} className="w-full h-16 object-cover" />
+                    {selectedReferences.pose?.id === ref.id && (
+                      <div className="absolute inset-0 bg-orange-500 bg-opacity-20 flex items-center justify-center">
+                        <div className="w-4 h-4 bg-orange-500 rounded-full"></div>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-gray-400 text-sm">
+                <Upload className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>ยังไม่มีรูป</p>
+                <p className="text-xs mt-1">คลิก "เพิ่ม" เพื่ออัปโหลด</p>
+              </div>
+            )}
           </div>
         </div>
 

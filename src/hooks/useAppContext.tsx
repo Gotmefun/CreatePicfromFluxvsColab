@@ -119,8 +119,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const parsed = JSON.parse(savedData);
         if (parsed.projects) dispatch({ type: 'SET_PROJECTS', payload: parsed.projects });
+        if (parsed.references) dispatch({ type: 'SET_REFERENCES', payload: parsed.references });
+        if (parsed.generatedImages) dispatch({ type: 'SET_GENERATED_IMAGES', payload: parsed.generatedImages });
         if (parsed.settings) dispatch({ type: 'SET_SETTINGS', payload: parsed.settings });
-             } catch (error) {
+      } catch (error) {
         console.error('Error loading saved data:', error);
       }
     }
@@ -129,10 +131,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const dataToSave = {
       projects: state.projects,
-      settings: state.settings,
-        };
+      references: state.references,
+      generatedImages: state.generatedImages,
+      settings: state.settings
+    };
     localStorage.setItem('aiImageGenApp', JSON.stringify(dataToSave));
-  }, [state.projects, state.settings]);
+  }, [state.projects, state.references, state.generatedImages, state.settings]);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>
