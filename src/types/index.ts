@@ -34,6 +34,12 @@ export interface GenerationSettings {
   height: number;
   seed?: number;
   denoisingStrength?: number;
+  // Hires.fix settings
+  enableHiresFix?: boolean;
+  hiresUpscaler?: string;
+  hiresSteps?: number;
+  hiresDenoising?: number;
+  hiresUpscaleBy?: number;
 }
 
 export type AIModel = 'stable-diffusion' | 'sdxl' | 'flux-ai';

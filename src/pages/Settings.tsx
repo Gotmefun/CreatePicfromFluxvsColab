@@ -52,21 +52,56 @@ export default function Settings() {
     setConnectionStatus(prev => ({ ...prev, [service]: 'testing' }));
 
     try {
-      // Simulate connection test
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Mock success/failure
-      const isSuccess = Math.random() > 0.3;
-      setConnectionStatus(prev => ({ 
-        ...prev, 
-        [service]: isSuccess ? 'connected' : 'disconnected' 
-      }));
-      
-      if (!isSuccess) {
-        alert(`ไม่สามารถเชื่อมต่อ ${service === 'colab' ? 'Google Colab' : 'Google Drive'} ได้`);
+      if (service === 'colab') {
+        // ทดสอบเชื่อมต่อ Colab API จริงๆ
+        const apiEndpoint = settings.colab.apiEndpoint;
+
+        if (!apiEndpoint) {
+          alert('⚠️ กรุณาใส่ API Endpoint ก่อน');
+          setConnectionStatus(prev => ({ ...prev, [service]: 'disconnected' }));
+          return;
+        }
+
+        console.log('🔍 ทดสอบเชื่อมต่อไปที่:', apiEndpoint);
+
+        // ลองเรียก /sdapi/v1/sd-models endpoint เพื่อเช็คว่า WebUI รันอยู่ไหม
+        const response = await fetch(`${apiEndpoint}/sdapi/v1/sd-models`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(10000) // timeout 10 วินาที
+        });
+
+        if (response.ok) {
+          const models = await response.json();
+          console.log('✅ เชื่อมต่อสำเร็จ! พบ models:', models.length);
+          setConnectionStatus(prev => ({ ...prev, [service]: 'connected' }));
+          alert(`✅ เชื่อมต่อ Colab สำเร็จ!\n\nพบ AI Models: ${models.length} โมเดล\n\n${models.map((m: any) => `• ${m.title || m.model_name}`).join('\n')}`);
+        } else {
+          console.error('❌ Response ไม่ OK:', response.status);
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+      } else {
+        // Google Drive - ยังไม่ implement
+        alert('⚠️ การทดสอบ Google Drive ยังไม่พร้อมใช้งาน\nกรุณาใช้งานผ่าน Google Cloud Console');
+        setConnectionStatus(prev => ({ ...prev, [service]: 'disconnected' }));
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ การเชื่อมต่อล้มเหลว:', error);
       setConnectionStatus(prev => ({ ...prev, [service]: 'disconnected' }));
+
+      let errorMessage = 'ไม่สามารถเชื่อมต่อได้';
+
+      if (error.name === 'AbortError' || error.message.includes('timeout')) {
+        errorMessage = '⏱️ หมดเวลาการเชื่อมต่อ (Timeout)\n\nกรุณาตรวจสอบ:\n• Colab Notebook กำลังรันอยู่หรือไม่\n• URL ถูกต้องหรือไม่';
+      } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        errorMessage = '🌐 ไม่สามารถเชื่อมต่อได้\n\nกรุณาตรวจสอบ:\n• Colab Notebook กำลังรันอยู่หรือไม่\n• Cell 4.0 และ 4.5 รันสำเร็จแล้ว\n• URL ถูกต้องและไม่หมดอายุ\n• ไม่มี CORS error';
+      } else if (error.message.includes('HTTP')) {
+        errorMessage = `❌ ${error.message}\n\nกรุณาตรวจสอบ:\n• Stable Diffusion WebUI รันอยู่หรือไม่\n• API endpoint ถูกต้อง`;
+      }
+
+      alert(`❌ ${service === 'colab' ? 'Google Colab' : 'Google Drive'}\n\n${errorMessage}`);
     } finally {
       setTestingConnection(null);
     }
@@ -294,14 +329,25 @@ export default function Settings() {
                         <ExternalLink className="w-4 h-4 text-blue-600" />
                       </div>
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <h3 className="text-sm font-medium text-blue-900 mb-1">วิธีตั้งค่า Google Colab</h3>
-                      <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-                        <li>เปิด Google Colab และโหลด Flux AI notebook</li>
-                        <li>รัน setup cells เพื่อติดตั้ง dependencies</li>
-                        <li>หา API endpoint URL จาก notebook</li>
-                        <li>คัดลอก URL มาใส่ในช่องด้านล่าง</li>
+                      <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside mb-3">
+                        <li>เปิด Google Colab และโหลด SDUnlimited notebook</li>
+                        <li>รัน Cell 4.0 เพื่อ Start Stable Diffusion WebUI</li>
+                        <li>รัน Cell 4.5 เพื่อสร้าง Cloudflare Tunnel</li>
+                        <li>คัดลอก URL ที่ได้ (รูปแบบ: https://xxx.trycloudflare.com)</li>
+                        <li>วาง URL ในช่อง "API Endpoint" ด้านล่าง</li>
+                        <li>กด "บันทึก" และทดสอบการเชื่อมต่อ</li>
                       </ol>
+                      <div className="bg-yellow-100 border border-yellow-300 rounded px-3 py-2">
+                        <p className="text-xs text-yellow-900 font-medium mb-1">⚠️ สำคัญมาก:</p>
+                        <p className="text-xs text-yellow-800">
+                          • Cloudflare Tunnel จะหมดอายุทุก 24 ชั่วโมง<br/>
+                          • เมื่อ Colab หยุดทำงาน หรือ Session หมดอายุ ต้องรัน Cell 4.5 ใหม่<br/>
+                          • URL ใหม่จะมีชื่อแตกต่างทุกครั้ง (เช่น peaceful-amazing-data.trycloudflare.com)<br/>
+                          • ต้องอัปเดต API Endpoint ที่นี่ทุกครั้งที่ได้ URL ใหม่
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>

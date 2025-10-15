@@ -36,7 +36,13 @@ export default function AIGeneration() {
     cfgScale: 7.5,
     width: 512,
     height: 512,
-    seed: undefined
+    seed: undefined,
+    // Hires.fix defaults
+    enableHiresFix: false,
+    hiresUpscaler: 'Latent',
+    hiresSteps: 0,
+    hiresDenoising: 0.5,
+    hiresUpscaleBy: 2.0
   });
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
@@ -229,23 +235,58 @@ export default function AIGeneration() {
       const apiUrl = `${state.settings.colab.apiEndpoint}/sdapi/v1/txt2img`;
       console.log('📡 API URL:', apiUrl);
 
+      // คำนวณ initial size เมื่อใช้ Hires.fix
+      let initialWidth = generationSettings.width;
+      let initialHeight = generationSettings.height;
+
+      if (generationSettings.enableHiresFix && generationSettings.hiresUpscaleBy) {
+        initialWidth = Math.round(generationSettings.width / generationSettings.hiresUpscaleBy);
+        initialHeight = Math.round(generationSettings.height / generationSettings.hiresUpscaleBy);
+        // ปัดให้หาร 8 ลงตัว
+        initialWidth = Math.round(initialWidth / 8) * 8;
+        initialHeight = Math.round(initialHeight / 8) * 8;
+      }
+
+      console.log('🎨 Generation Settings:', {
+        enableHiresFix: generationSettings.enableHiresFix,
+        initialSize: `${initialWidth}x${initialHeight}`,
+        finalSize: `${generationSettings.width}x${generationSettings.height}`,
+        upscaler: generationSettings.hiresUpscaler,
+        denoising: generationSettings.hiresDenoising
+      });
+
+      // สร้าง request body
+      const requestBody: any = {
+        prompt: prompt,
+        negative_prompt: finalNegativePrompt,
+        steps: generationSettings.steps,
+        cfg_scale: generationSettings.cfgScale,
+        width: initialWidth,
+        height: initialHeight,
+        seed: generationSettings.seed || -1,
+        sampler_name: "DPM++ 2M Karras",
+        restore_faces: false,
+        enable_hr: generationSettings.enableHiresFix || false
+      };
+
+      // เพิ่ม Hires.fix parameters ถ้าเปิดใช้งาน
+      if (generationSettings.enableHiresFix) {
+        requestBody.hr_scale = generationSettings.hiresUpscaleBy;
+        requestBody.hr_upscaler = generationSettings.hiresUpscaler;
+        requestBody.hr_second_pass_steps = generationSettings.hiresSteps || 0;
+        requestBody.denoising_strength = generationSettings.hiresDenoising;
+        requestBody.hr_resize_x = generationSettings.width;
+        requestBody.hr_resize_y = generationSettings.height;
+      }
+
+      console.log('📤 Request Body:', JSON.stringify(requestBody, null, 2));
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          prompt: prompt,
-          negative_prompt: finalNegativePrompt,
-          steps: generationSettings.steps,
-          cfg_scale: generationSettings.cfgScale,
-          width: generationSettings.width,
-          height: generationSettings.height,
-          seed: generationSettings.seed || -1,
-          sampler_name: "DPM++ 2M Karras",
-          restore_faces: false,
-          enable_hr: false
-        })
+        body: JSON.stringify(requestBody)
       });
 
       clearInterval(progressInterval);
@@ -291,9 +332,38 @@ export default function AIGeneration() {
 
       dispatch({ type: 'ADD_GENERATED_IMAGE', payload: newImage });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Generation failed:', error);
-      alert('เกิดข้อผิดพลาดในการสร้างภาพ');
+
+      // Handle specific error cases
+      let errorMessage = '❌ เกิดข้อผิดพลาดในการสร้างภาพ';
+
+      if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
+        errorMessage = `🚫 ไม่สามารถเชื่อมต่อ Colab API ได้
+
+❗ สาเหตุที่เป็นไปได้:
+1️⃣ Cloudflare Tunnel URL หมดอายุ (Tunnel ใช้ได้ไม่เกิน 24 ชั่วโมง)
+2️⃣ Colab Notebook หยุดทำงานแล้ว
+3️⃣ Cell 4.5 (Cloudflare Tunnel) ยังไม่ได้รัน
+
+🔧 วิธีแก้ไข:
+1. กลับไปที่ Google Colab Notebook
+2. รัน Cell 4.5 (Cloudflare Tunnel) ใหม่
+3. คัดลอก URL ใหม่ที่ขึ้นในรูปแบบ:
+   https://[ชื่อ-ใหม่].trycloudflare.com
+4. ไปที่ Settings > Google Colab
+5. อัปเดต API Endpoint ด้วย URL ใหม่
+6. คลิก "บันทึก"
+7. กลับมาลองอีกครั้ง
+
+💡 ทิป: URL ใหม่จะมีชื่อแบบสุ่มทุกครั้ง เช่น:
+   • randomly-great-text-ideas.trycloudflare.com
+   • peaceful-amazing-data-concept.trycloudflare.com`;
+      } else if (error.message.includes('API Error')) {
+        errorMessage = `❌ Stable Diffusion WebUI Error\n\n${error.message}\n\nกรุณาตรวจสอบ:\n• WebUI กำลังรันอยู่หรือไม่\n• Settings ถูกต้องหรือไม่`;
+      }
+
+      alert(errorMessage);
     } finally {
       setIsGenerating(false);
       setProgress(0);
@@ -636,6 +706,38 @@ export default function AIGeneration() {
 
         {/* Main Generation Area */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Aspect Ratio Selection - Always Visible */}
+          <div className="card p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <Sliders className="w-5 h-5 mr-2" />
+              📐 เลือกขนาดภาพ
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {aspectRatioPresets.map(preset => (
+                <button
+                  key={preset.id}
+                  onClick={() => handleAspectRatioChange(preset.id)}
+                  className={`
+                    p-3 rounded-lg border-2 transition-all text-left
+                    ${generationSettings.width === preset.width && generationSettings.height === preset.height
+                      ? 'border-primary-500 bg-primary-50'
+                      : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className="text-xl">{preset.icon}</span>
+                    <span className="font-medium text-sm">{preset.name}</span>
+                  </div>
+                  {preset.description && (
+                    <p className="text-xs text-gray-500">{preset.description}</p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">{preset.width} × {preset.height}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Prompt Input */}
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
@@ -645,7 +747,7 @@ export default function AIGeneration() {
                 AI Suggest
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -659,7 +761,7 @@ export default function AIGeneration() {
                   className="input-field"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Negative Prompt (ไม่ต้องการ)
@@ -722,49 +824,14 @@ export default function AIGeneration() {
             )}
           </div>
 
-          {/* Generation Settings */}
+          {/* Advanced Settings */}
           {showSettings && (
-            <div className="card p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <Sliders className="w-5 h-5 mr-2" />
-                Generation Settings
-              </h3>
-
-              {/* Aspect Ratio Presets */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  📐 ขนาดภาพสำหรับแพลตฟอร์ม
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {aspectRatioPresets.map(preset => (
-                    <button
-                      key={preset.id}
-                      onClick={() => handleAspectRatioChange(preset.id)}
-                      className={`
-                        p-3 rounded-lg border-2 transition-all text-left
-                        ${generationSettings.width === preset.width && generationSettings.height === preset.height
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'
-                        }
-                      `}
-                    >
-                      <div className="flex items-center space-x-2 mb-1">
-                        <span className="text-xl">{preset.icon}</span>
-                        <span className="font-medium text-sm">{preset.name}</span>
-                      </div>
-                      {preset.description && (
-                        <p className="text-xs text-gray-500">{preset.description}</p>
-                      )}
-                      <p className="text-xs text-gray-400 mt-1">{preset.width} × {preset.height}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t pt-4 mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+            <div className="card p-6 space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <Sliders className="w-5 h-5 mr-2" />
                   ⚙️ ตั้งค่าขั้นสูง
-                </label>
+                </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Steps</label>
@@ -814,6 +881,112 @@ export default function AIGeneration() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Hires.fix Section */}
+              <div className="border-t pt-6">
+                <div className="flex items-center mb-4">
+                  <input
+                    type="checkbox"
+                    id="enableHiresFix"
+                    checked={generationSettings.enableHiresFix}
+                    onChange={(e) => setGenerationSettings(prev => ({ ...prev, enableHiresFix: e.target.checked }))}
+                    className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500"
+                  />
+                  <label htmlFor="enableHiresFix" className="ml-2 text-sm font-medium text-gray-900">
+                    🎨 Enable Hires.fix (สำหรับความละเอียดสูง)
+                  </label>
+                </div>
+
+                {generationSettings.enableHiresFix && (
+                  <div className="ml-6 space-y-4">
+                    <p className="text-xs text-gray-600 mb-4">
+                      💡 Hires.fix จะสร้างภาพขนาดเล็กก่อน แล้วขยายให้คมชัด เหมาะสำหรับภาพขนาดใหญ่ (1080x1920)
+                    </p>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Upscaler
+                        </label>
+                        <select
+                          value={generationSettings.hiresUpscaler}
+                          onChange={(e) => setGenerationSettings(prev => ({ ...prev, hiresUpscaler: e.target.value }))}
+                          className="input-field"
+                        >
+                          <option value="Latent">Latent (เร็ว)</option>
+                          <option value="Latent (nearest-exact)">Latent (nearest-exact)</option>
+                          <option value="None">None</option>
+                          <option value="Lanczos">Lanczos</option>
+                          <option value="Nearest">Nearest</option>
+                          <option value="ESRGAN_4x">ESRGAN 4x (คม)</option>
+                          <option value="R-ESRGAN 4x+">R-ESRGAN 4x+</option>
+                          <option value="SwinIR_4x">SwinIR 4x</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Upscale By
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="4"
+                          step="0.1"
+                          value={generationSettings.hiresUpscaleBy}
+                          onChange={(e) => setGenerationSettings(prev => ({ ...prev, hiresUpscaleBy: parseFloat(e.target.value) }))}
+                          className="input-field"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          ขยาย {generationSettings.hiresUpscaleBy}x
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Denoising
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={generationSettings.hiresDenoising}
+                          onChange={(e) => setGenerationSettings(prev => ({ ...prev, hiresDenoising: parseFloat(e.target.value) }))}
+                          className="input-field"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          0.3-0.7 แนะนำ
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Hires Steps
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="50"
+                          value={generationSettings.hiresSteps}
+                          onChange={(e) => setGenerationSettings(prev => ({ ...prev, hiresSteps: parseInt(e.target.value) }))}
+                          className="input-field"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          0 = ใช้ steps หลัก
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-xs text-blue-900">
+                        <strong>📊 Preview:</strong> สร้างที่ {Math.round(generationSettings.width / generationSettings.hiresUpscaleBy!)}x{Math.round(generationSettings.height / generationSettings.hiresUpscaleBy!)}
+                        → ขยายเป็น {generationSettings.width}x{generationSettings.height}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
