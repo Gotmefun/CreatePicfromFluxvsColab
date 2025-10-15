@@ -1,0 +1,95 @@
+# Cell 4.5 - 🌐 Create Public URL with Cloudflare (ไม่ต้องสมัคร!)
+
+# แทนที่ Cell 4.5 เดิมด้วยโค้ดนี้
+
+import subprocess
+import time
+import re
+
+print("="*60)
+print("🌐 Creating Public URL with Cloudflare Tunnel...")
+print("="*60 + "\n")
+
+# Download cloudflared
+print("📥 Downloading cloudflared...\n")
+!wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+!dpkg -i cloudflared-linux-amd64.deb > /dev/null 2>&1
+
+print("✅ Cloudflared installed!\n")
+
+# Start tunnel
+print("📡 Creating Cloudflare tunnel...\n")
+
+tunnel_process = subprocess.Popen(
+    ['cloudflared', 'tunnel', '--url', 'http://127.0.0.1:7860'],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True
+)
+
+# Wait and extract URL
+public_url = None
+print("⏳ Waiting for tunnel URL...\n")
+
+for i in range(30):  # Try for 30 seconds
+    line = tunnel_process.stderr.readline()
+    if 'trycloudflare.com' in line:
+        # Extract URL
+        match = re.search(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', line)
+        if match:
+            public_url = match.group(0)
+            break
+    time.sleep(1)
+
+if public_url:
+    print("\n" + "="*60)
+    print("✅ PUBLIC URL CREATED!")
+    print("="*60)
+    print("\n🔗 YOUR API URL:")
+    print("\n" + "="*60)
+    print(f"   {public_url}")
+    print("="*60)
+    print("\n📋 COPY THE URL ABOVE!")
+    print("\n📝 How to use:")
+    print("   1. Copy the URL above")
+    print("   2. Go to https://aigen.ptee88.com/")
+    print("   3. Settings → Google Colab → Paste URL")
+    print("   4. Settings → Enable NSFW Unlimited Mode")
+    print("   5. Save & Generate!")
+    print("\n" + "="*60)
+
+    # Display as HTML
+    from IPython.display import HTML, display
+
+    html = f"""
+    <div style="
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      border-radius: 15px;
+      margin: 20px 0;
+      font-family: 'Google Sans', sans-serif;
+      text-align: center;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+    ">
+      <h1 style="margin: 0 0 20px 0; font-size: 32px;">🎉 Public URL Created!</h1>
+      <div style="
+        background: rgba(255,255,255,0.2);
+        padding: 20px;
+        border-radius: 10px;
+        margin: 20px 0;
+        font-size: 20px;
+        font-weight: bold;
+        word-break: break-all;
+        font-family: 'Courier New', monospace;
+      ">
+        {public_url}
+      </div>
+      <p style="font-size: 18px; margin: 15px 0;">📋 Copy URL นี้ไปใส่ในเว็บไซต์</p>
+      <p style="font-size: 16px; opacity: 0.9;">https://aigen.ptee88.com/ → Settings → Google Colab</p>
+    </div>
+    """
+
+    display(HTML(html))
+else:
+    print("❌ Failed to create tunnel. Try running this cell again.")

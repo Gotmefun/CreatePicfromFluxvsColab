@@ -1,0 +1,52 @@
+import os
+import subprocess
+import time
+
+os.chdir('/content/stable-diffusion-webui')
+
+print("="*60)
+print("🚀 Starting SD Unlimited WebUI...")
+print("="*60)
+print()
+print("⚙️  Configuration:")
+print("   ✅ API Enabled")
+print("   ✅ CORS Enabled (all origins)")
+print("   ✅ NSFW Filter: DISABLED")
+print("   ✅ Safety Checker: DISABLED")
+print()
+print("⏱️  Starting... wait 2-3 minutes...")
+print()
+print("="*60)
+print()
+
+webui_process = subprocess.Popen([
+	'python', 'launch.py',
+	'--skip-python-version-check',
+	'--skip-torch-cuda-test',
+	'--api',
+	'--cors-allow-origins=*',
+	'--enable-insecure-extension-access',
+	'--no-half-vae',
+	'--disable-safe-unpickle',
+	'--no-hashing',
+	'--lowvram',
+	'--skip-install',
+	'--no-gradio-queue'
+], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+print("✅ WebUI starting in background...")
+print("   Process ID:", webui_process.pid)
+print("\n⏳ Waiting for WebUI to start (60 seconds)...\n")
+
+time.sleep(60)
+
+import urllib.request
+try:
+	urllib.request.urlopen('http://127.0.0.1:7860')
+	print("✅ WebUI is running on http://127.0.0.1:7860")
+	print("\n🎯 Next: Run Cell 4.5 to create Public URL")
+except:
+	print("⚠️  WebUI may still be starting...")
+	print("   Wait 1-2 more minutes, then run Cell 4.5")
+
+print("\n" + "="*60)
