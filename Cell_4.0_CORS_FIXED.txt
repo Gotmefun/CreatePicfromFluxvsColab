@@ -1,0 +1,28 @@
+import os,subprocess,time
+os.chdir('/content/stable-diffusion-webui')
+print("="*60+"\n🚀 Starting WebUI with CORS fix...\n"+"="*60+"\n⏱️  Wait 60 seconds...\n")
+p=subprocess.Popen([
+	'python','launch.py',
+	'--skip-python-version-check',
+	'--skip-torch-cuda-test',
+	'--listen',
+	'--port=7860',
+	'--api',
+	'--cors-allow-origins=https://aigen.ptee88.com',
+	'--cors-allow-origins=*',
+	'--enable-insecure-extension-access',
+	'--no-half-vae',
+	'--disable-safe-unpickle',
+	'--no-hashing',
+	'--lowvram',
+	'--skip-install',
+	'--no-gradio-queue'
+],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+print(f"✅ Starting (PID: {p.pid})\n⏳ Waiting...\n")
+time.sleep(60)
+import urllib.request
+try:
+	urllib.request.urlopen('http://127.0.0.1:7860')
+	print("✅ WebUI running!\n🎯 Next: Cell 4.5\n"+"="*60)
+except:
+	print("⚠️  Still starting... wait 1-2 min\n"+"="*60)
