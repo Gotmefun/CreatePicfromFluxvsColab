@@ -41,6 +41,12 @@ const initialState: AppState = {
       notebookUrl: '',
       apiEndpoint: ''
     },
+    huggingFace: {
+      apiKey: '',
+      model: 'black-forest-labs/FLUX.1-schnell',
+      enabled: true
+    },
+    apiMode: 'huggingface',
     defaultModel: 'flux-ai',
     autoSave: true,
     theme: 'light',

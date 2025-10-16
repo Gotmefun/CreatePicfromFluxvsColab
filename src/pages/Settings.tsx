@@ -1,24 +1,25 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../hooks/useAppContext';
 import { AppSettings } from '../types';
-import { 
-  Save, 
-  Settings as SettingsIcon, 
-  Link, 
-  Database, 
-  Palette, 
+import {
+  Save,
+  Settings as SettingsIcon,
+  Link,
+  Database,
+  Palette,
   Download,
   Upload,
   RefreshCw,
   AlertTriangle,
   CheckCircle,
-  ExternalLink
+  ExternalLink,
+  Zap
 } from 'lucide-react';
 
 export default function Settings() {
   const { state, dispatch } = useAppContext();
   const [settings, setSettings] = useState<AppSettings>(state.settings);
-  const [activeTab, setActiveTab] = useState<'general' | 'colab' | 'drive' | 'models'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'colab' | 'huggingface' | 'drive' | 'models'>('general');
   const [testingConnection, setTestingConnection] = useState<'colab' | 'drive' | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<{
     colab: 'connected' | 'disconnected' | 'testing';
@@ -35,6 +36,7 @@ export default function Settings() {
 
   const tabs = [
     { id: 'general', name: 'ทั่วไป', icon: SettingsIcon },
+    { id: 'huggingface', name: 'Hugging Face', icon: Zap },
     { id: 'colab', name: 'Google Colab', icon: Link },
     { id: 'drive', name: 'Google Drive', icon: Database },
     { id: 'models', name: 'AI Models', icon: Palette },
@@ -306,6 +308,162 @@ export default function Settings() {
                   <p className="text-xs text-gray-600 mt-1 ml-6">
                     • แสดง NSFW Prompt Templates สำเร็จรูป
                   </p>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'huggingface' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900">Hugging Face API Integration</h2>
+                  <div className="flex items-center space-x-2">
+                    <Zap className="w-4 h-4 text-green-600" />
+                    <span className="text-sm text-green-600 font-medium">
+                      แนะนำ
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-medium text-green-900 mb-1">ทำไมต้อง Hugging Face API?</h3>
+                      <ul className="text-sm text-green-800 space-y-1">
+                        <li>✅ ไม่ต้องรอ Colab ใช้เวลานาน</li>
+                        <li>✅ ไม่มีปัญหา GPU quota หมด</li>
+                        <li>✅ เร็วและเสถียรกว่า</li>
+                        <li>✅ ใช้งานง่าย - แค่ใส่ API key</li>
+                        <li>✅ รองรับ FLUX.1 Schnell (รุ่นเร็ว)</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <ExternalLink className="w-4 h-4 text-blue-600" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-medium text-blue-900 mb-1">วิธีรับ API Key (ฟรี!)</h3>
+                      <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                        <li>เข้า <a href="https://huggingface.co" target="_blank" rel="noopener" className="underline font-medium">huggingface.co</a> และสมัครบัญชี (ฟรี)</li>
+                        <li>ไปที่ Settings → Access Tokens</li>
+                        <li>คลิก "New token" → ตั้งชื่อ (เช่น "ai-gen-pic")</li>
+                        <li>เลือก Role: "Read" (อ่านอย่างเดียวพอ)</li>
+                        <li>คัดลอก API Key มาวางด้านล่าง</li>
+                      </ol>
+                      <a
+                        href="https://huggingface.co/settings/tokens"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center mt-3 text-sm text-blue-700 hover:text-blue-900 font-medium"
+                      >
+                        <ExternalLink className="w-3 h-3 mr-1" />
+                        เปิดหน้า Access Tokens
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    API Mode (โหมด API)
+                  </label>
+                  <select
+                    value={settings.apiMode}
+                    onChange={(e) => setSettings(prev => ({
+                      ...prev,
+                      apiMode: e.target.value as 'colab' | 'huggingface'
+                    }))}
+                    className="input-field"
+                  >
+                    <option value="huggingface">🚀 Hugging Face API (แนะนำ - เร็วและเสถียร)</option>
+                    <option value="colab">🔬 Google Colab (ใช้เวลานาน มีปัญหา GPU)</option>
+                  </select>
+                  <p className="text-xs text-gray-600 mt-1">
+                    เลือก Hugging Face เพื่อประสบการณ์ที่ดีที่สุด
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Hugging Face API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={settings.huggingFace.apiKey}
+                    onChange={(e) => setSettings(prev => ({
+                      ...prev,
+                      huggingFace: { ...prev.huggingFace, apiKey: e.target.value }
+                    }))}
+                    placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="input-field font-mono"
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    API Key จาก Hugging Face (ขึ้นต้นด้วย hf_)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    AI Model
+                  </label>
+                  <select
+                    value={settings.huggingFace.model}
+                    onChange={(e) => setSettings(prev => ({
+                      ...prev,
+                      huggingFace: { ...prev.huggingFace, model: e.target.value }
+                    }))}
+                    className="input-field"
+                  >
+                    <option value="black-forest-labs/FLUX.1-schnell">FLUX.1 Schnell (เร็ว - แนะนำ)</option>
+                    <option value="black-forest-labs/FLUX.1-dev">FLUX.1 Dev (คุณภาพสูง)</option>
+                    <option value="stabilityai/stable-diffusion-xl-base-1.0">Stable Diffusion XL</option>
+                    <option value="runwayml/stable-diffusion-v1-5">Stable Diffusion 1.5</option>
+                  </select>
+                  <p className="text-xs text-gray-600 mt-1">
+                    FLUX.1 Schnell = เร็วที่สุด (4 steps), เหมาะกับการใช้งานทั่วไป
+                  </p>
+                </div>
+
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={settings.huggingFace.enabled}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        huggingFace: { ...prev.huggingFace, enabled: e.target.checked }
+                      }))}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">
+                      เปิดใช้งาน Hugging Face API
+                    </span>
+                  </label>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="text-sm font-medium text-yellow-900 mb-1">
+                        ข้อจำกัดของ Free Tier
+                      </h3>
+                      <p className="text-sm text-yellow-800">
+                        Hugging Face Free tier จำกัด: 1,000 requests/เดือน<br/>
+                        หากต้องการใช้งานมากขึ้น สามารถอัปเกรดเป็น PRO ($9/เดือน) ได้
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

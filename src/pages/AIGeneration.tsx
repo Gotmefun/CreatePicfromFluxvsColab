@@ -198,10 +198,17 @@ export default function AIGeneration() {
       return;
     }
 
-    // เช็คว่าตั้งค่า API Endpoint หรือยัง
-    if (!state.settings.colab.apiEndpoint) {
-      alert('⚠️ กรุณาตั้งค่า API Endpoint ที่ Settings > Google Colab ก่อน');
-      return;
+    // เช็คการตั้งค่าตาม API Mode
+    if (state.settings.apiMode === 'huggingface') {
+      if (!state.settings.huggingFace.apiKey) {
+        alert('⚠️ กรุณาใส่ Hugging Face API Key ที่ Settings > Hugging Face ก่อน\n\n💡 รับ API Key ฟรีได้ที่ huggingface.co/settings/tokens');
+        return;
+      }
+    } else if (state.settings.apiMode === 'colab') {
+      if (!state.settings.colab.apiEndpoint) {
+        alert('⚠️ กรุณาตั้งค่า API Endpoint ที่ Settings > Google Colab ก่อน');
+        return;
+      }
     }
 
     setIsGenerating(true);
@@ -213,7 +220,7 @@ export default function AIGeneration() {
         setProgress(prev => Math.min(prev + 5, 90));
       }, 500);
 
-      console.log('🚀 กำลังเรียก Colab API:', state.settings.colab.apiEndpoint);
+      console.log('🚀 API Mode:', state.settings.apiMode);
       console.log('📸 Selected References:', {
         face: selectedReferences.face?.filename,
         product: selectedReferences.product?.filename,
@@ -231,9 +238,69 @@ export default function AIGeneration() {
           : nsfwBlockKeywords;
       }
 
-      // เรียก Stable Diffusion WebUI API
-      const apiUrl = `${state.settings.colab.apiEndpoint}/sdapi/v1/txt2img`;
-      console.log('📡 API URL:', apiUrl);
+      let imageDataUrl: string;
+
+      // ==================================================
+      // 🚀 HUGGING FACE API MODE
+      // ==================================================
+      if (state.settings.apiMode === 'huggingface') {
+        console.log('🤗 Using Hugging Face API');
+        console.log('📦 Model:', state.settings.huggingFace.model);
+
+        const hfApiUrl = `https://api-inference.huggingface.co/models/${state.settings.huggingFace.model}`;
+
+        const response = await fetch(hfApiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${state.settings.huggingFace.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            inputs: prompt,
+            parameters: {
+              negative_prompt: finalNegativePrompt || undefined,
+              num_inference_steps: generationSettings.steps,
+              guidance_scale: generationSettings.cfgScale,
+              width: generationSettings.width,
+              height: generationSettings.height,
+            }
+          })
+        });
+
+        clearInterval(progressInterval);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Hugging Face API Error:', response.status, errorText);
+
+          if (response.status === 401) {
+            throw new Error('API Key ไม่ถูกต้อง - กรุณาตรวจสอบที่ Settings');
+          } else if (response.status === 503) {
+            throw new Error('Model กำลังโหลด - กรุณารอสักครู่แล้วลองใหม่ (ประมาณ 20 วินาที)');
+          } else {
+            throw new Error(`Hugging Face API Error: ${response.status} ${response.statusText}`);
+          }
+        }
+
+        // Hugging Face returns image as blob
+        const imageBlob = await response.blob();
+
+        // Convert blob to base64
+        const reader = new FileReader();
+        imageDataUrl = await new Promise((resolve) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(imageBlob);
+        });
+
+        console.log('✅ Hugging Face สร้างรูปสำเร็จ!');
+      }
+      // ==================================================
+      // 🔬 GOOGLE COLAB API MODE
+      // ==================================================
+      else {
+        console.log('🔬 Using Google Colab API');
+        const apiUrl = `${state.settings.colab.apiEndpoint}/sdapi/v1/txt2img`;
+        console.log('📡 API URL:', apiUrl);
 
       // คำนวณ initial size เมื่อใช้ Hires.fix
       let initialWidth = generationSettings.width;
@@ -303,11 +370,16 @@ export default function AIGeneration() {
         throw new Error('ไม่สามารถสร้างรูปได้');
       }
 
-      console.log('✅ สร้างรูปสำเร็จ!');
-      setProgress(100);
+        console.log('✅ Colab สร้างรูปสำเร็จ!');
 
-      // Convert base64 to data URL
-      const imageDataUrl = `data:image/png;base64,${data.images[0]}`;
+        // Convert base64 to data URL
+        imageDataUrl = `data:image/png;base64,${data.images[0]}`;
+      }
+
+      // ==================================================
+      // ✅ SAVE GENERATED IMAGE (Both APIs)
+      // ==================================================
+      setProgress(100);
       setGeneratedImage(imageDataUrl);
 
       // Save to generated images
@@ -338,8 +410,41 @@ export default function AIGeneration() {
       // Handle specific error cases
       let errorMessage = '❌ เกิดข้อผิดพลาดในการสร้างภาพ';
 
-      if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
-        errorMessage = `🚫 ไม่สามารถเชื่อมต่อ Colab API ได้
+      // Hugging Face specific errors
+      if (state.settings.apiMode === 'huggingface') {
+        if (error.message.includes('API Key ไม่ถูกต้อง')) {
+          errorMessage = `🚫 Hugging Face API Key ไม่ถูกต้อง
+
+กรุณาตรวจสอบ:
+1. ไปที่ Settings > Hugging Face
+2. ตรวจสอบว่า API Key ถูกต้อง (ขึ้นต้นด้วย hf_)
+3. หากไม่มี API Key ให้สร้างใหม่ที่:
+   https://huggingface.co/settings/tokens`;
+        } else if (error.message.includes('Model กำลังโหลด')) {
+          errorMessage = `⏳ Model กำลังโหลด
+
+Hugging Face กำลังโหลด AI Model...
+กรุณารอสักครู่ (ประมาณ 20-30 วินาที) แล้วลองใหม่อีกครั้ง
+
+💡 Model ที่ใช้: ${state.settings.huggingFace.model}`;
+        } else if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
+          errorMessage = `🌐 ไม่สามารถเชื่อมต่อ Hugging Face API ได้
+
+กรุณาตรวจสอบ:
+• อินเทอร์เน็ตเชื่อมต่อปกติ
+• Hugging Face API ทำงานปกติ
+
+หากยังไม่ได้ ลองเปลี่ยนเป็น Colab Mode ที่ Settings`;
+        } else if (error.message.includes('Hugging Face API Error')) {
+          errorMessage = `❌ ${error.message}
+
+กรุณาลองใหม่อีกครั้ง หรือเปลี่ยน Model ที่ Settings > Hugging Face`;
+        }
+      }
+      // Colab specific errors
+      else {
+        if (error.message === 'Failed to fetch' || error.name === 'TypeError') {
+          errorMessage = `🚫 ไม่สามารถเชื่อมต่อ Colab API ได้
 
 ❗ สาเหตุที่เป็นไปได้:
 1️⃣ Cloudflare Tunnel URL หมดอายุ (Tunnel ใช้ได้ไม่เกิน 24 ชั่วโมง)
@@ -356,11 +461,10 @@ export default function AIGeneration() {
 6. คลิก "บันทึก"
 7. กลับมาลองอีกครั้ง
 
-💡 ทิป: URL ใหม่จะมีชื่อแบบสุ่มทุกครั้ง เช่น:
-   • randomly-great-text-ideas.trycloudflare.com
-   • peaceful-amazing-data-concept.trycloudflare.com`;
-      } else if (error.message.includes('API Error')) {
-        errorMessage = `❌ Stable Diffusion WebUI Error\n\n${error.message}\n\nกรุณาตรวจสอบ:\n• WebUI กำลังรันอยู่หรือไม่\n• Settings ถูกต้องหรือไม่`;
+💡 ทิป: ลองเปลี่ยนเป็น Hugging Face Mode แทน (แนะนำ)`;
+        } else if (error.message.includes('API Error')) {
+          errorMessage = `❌ Stable Diffusion WebUI Error\n\n${error.message}\n\nกรุณาตรวจสอบ:\n• WebUI กำลังรันอยู่หรือไม่\n• Settings ถูกต้องหรือไม่`;
+        }
       }
 
       alert(errorMessage);

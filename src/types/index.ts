@@ -97,9 +97,19 @@ export interface ColabConfig {
   authToken?: string;
 }
 
+export interface HuggingFaceConfig {
+  apiKey: string;
+  model: string;
+  enabled: boolean;
+}
+
+export type ApiMode = 'colab' | 'huggingface';
+
 export interface AppSettings {
   googleDrive: GoogleDriveConfig;
   colab: ColabConfig;
+  huggingFace: HuggingFaceConfig;
+  apiMode: ApiMode;
   defaultModel: AIModel;
   autoSave: boolean;
   theme: 'light' | 'dark';
